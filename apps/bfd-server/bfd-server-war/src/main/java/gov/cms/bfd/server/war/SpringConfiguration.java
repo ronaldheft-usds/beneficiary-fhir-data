@@ -1,5 +1,9 @@
 package gov.cms.bfd.server.war;
 
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.rest.client.api.ServerValidationModeEnum;
+import ca.uhn.fhir.rest.client.interceptor.LoggingInterceptor;
 import ca.uhn.fhir.rest.server.IResourceProvider;
 import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.ResponseHighlighterInterceptor;
@@ -25,6 +29,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.PersistenceContext;
@@ -358,5 +363,37 @@ public class SpringConfiguration {
   public IServerInterceptor responseHighlighterInterceptor() {
     ResponseHighlighterInterceptor retVal = new ResponseHighlighterInterceptor();
     return retVal;
+  }
+
+  /**
+   * @param plaidApplication the {@link PlaidApplicationComponent} representing the Plaid server to
+   *     use
+   * @param dataSource (not used, but needs to be configured before this bean is created, so that
+   *     the DB and schema are guaranteed to exist)
+   * @return the {@link IGenericClient} to use for querying the local Plaid application
+   */
+  @Bean
+  public IGenericClient plaidClient(
+      PlaidApplicationComponent plaidApplication, DataSource dataSource) {
+    // Figure out where the test server is running.
+    String plaidUrl =
+        String.format("http://localhost:%d/v1/fhir", plaidApplication.getPlaidHttpPort());
+
+    FhirContext ctx = FhirContext.forDstu3();
+    ctx.getRestfulClientFactory().setSocketTimeout((int) TimeUnit.SECONDS.toMillis(30));
+    ctx.getRestfulClientFactory().setServerValidationMode(ServerValidationModeEnum.NEVER);
+    IGenericClient client = ctx.newRestfulGenericClient(plaidUrl);
+
+    // FIXME Disable all this before release.
+    LoggingInterceptor loggingInterceptor = new LoggingInterceptor();
+    loggingInterceptor.setLogRequestSummary(true);
+    loggingInterceptor.setLogResponseSummary(true);
+    loggingInterceptor.setLogRequestHeaders(true);
+    loggingInterceptor.setLogResponseHeaders(false);
+    loggingInterceptor.setLogRequestBody(false);
+    loggingInterceptor.setLogResponseBody(true);
+    client.registerInterceptor(loggingInterceptor);
+
+    return client;
   }
 }
