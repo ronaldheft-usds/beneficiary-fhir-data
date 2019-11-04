@@ -8,6 +8,7 @@
 -- on readout, instead.
 --
 -- Based on this information, alters have the implicit default null
+--
 
 alter table "Beneficiaries" add column "lastUpdated" timestamp with time zone;
 
