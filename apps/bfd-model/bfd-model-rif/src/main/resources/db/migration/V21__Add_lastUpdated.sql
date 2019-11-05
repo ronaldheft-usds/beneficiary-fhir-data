@@ -40,7 +40,6 @@ alter table "SNFClaims" add column lastUpdated timestamp with time zone;
 create table "LoadedFiles" (
 	"fileId" bigint primary key,							-- Internal db key
 	"rifType" varchar(48) not null,							-- The RifFileType 
-	"sequenceId" varchar(16) not null,						-- Sequence from the manifest file
 	"manifestTime" timestamp with time zone not null,		-- The timestamp from the manifest file. 
 	"startTime" timestamp with time zone,					-- Timestamp from the pipeline process	
 	"endTime" timestamp with time zone						-- Timestamp from the pipeline process
