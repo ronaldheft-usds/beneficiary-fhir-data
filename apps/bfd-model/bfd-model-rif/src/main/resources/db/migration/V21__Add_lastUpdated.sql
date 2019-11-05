@@ -33,30 +33,31 @@ alter table "HospiceClaims" add column lastUpdated timestamp with time zone;
 alter table "SNFClaims" add column lastUpdated timestamp with time zone;
 
 -- 
--- Add tables that track the ETL load process
+-- Add tables that track the ETL process
 --
 
--- One row for each RIF file processed. The timestamps represent start and end time of processing the file. 
-create table "ProcessedFiles" (
+-- One row for each RIF file loaded. The timestamps represent start and end time of processing the file. 
+create table "LoadedFiles" (
 	"fileId" bigint primary key,							-- Internal db key
 	"rifType" varchar(48) not null,							-- The RifFileType 
 	"sequenceId" varchar(16) not null,						-- Sequence from the manifest file
+	"manifestTime" timestamp with time zone not null,		-- The timestamp from the manifest file. 
 	"startTime" timestamp with time zone,					-- Timestamp from the pipeline process	
 	"endTime" timestamp with time zone						-- Timestamp from the pipeline process
 )
 
-create sequence processedFiles_fileId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
+create sequence loadedFiles_fileId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
 
--- One row for each beneficiary updated per each RIF file processed 
-create table "ProcessedBeneficiaries" (
+-- One row for each beneficiary updated by a RIF file
+create table "LoadedBeneficiaries" (
 	"fileId" bigint not null,								-- One set per RifFile
 	"beneficiaryId" varchar(15) not null,					-- The beneficiaries in the rif file
 	primary key ("fileId", "beneficiaryId")
 )
 ;
 
-alter table "ProcessedBeneficiaries" 				
-	add constraint "processedBeneficiaries_filesId" 
+alter table "LoadedBeneficiaries" 				
+	add constraint "loadedBeneficiaries_fileId" 
 		foreign key ("fileId") 
-		references "ProcessedFiles";
+		references "LoadedFiles";
 
