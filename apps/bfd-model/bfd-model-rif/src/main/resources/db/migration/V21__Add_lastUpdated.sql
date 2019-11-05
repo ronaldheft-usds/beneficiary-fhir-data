@@ -45,7 +45,7 @@ create table "ProcessedFiles" (
 	"endTime" timestamp with time zone						-- Timestamp from the pipeline process
 )
 
-create sequence rifFiles_id_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
+create sequence processedFiles_fileId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
 
 -- One row for each beneficiary updated per each RIF file processed 
 create table "ProcessedBeneficiaries" (
