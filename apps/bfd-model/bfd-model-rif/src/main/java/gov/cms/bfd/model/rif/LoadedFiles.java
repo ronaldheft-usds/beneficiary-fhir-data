@@ -10,14 +10,14 @@ import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 
 @Entity
-@Table(name = "`ProcessedFiles`")
-public class ProcessedFiles {
+@Table(name = "`LoadedFiles`")
+public class LoadedFiles {
   @Id
   @Column(name = "`fileId`", nullable = false)
-  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "processedFiles_fileId_seq")
+  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "loadedFiles_fileId_seq")
   @SequenceGenerator(
-      name = "processedFiles_fileId_seq",
-      sequenceName = "processedFiles_fileId_seq",
+      name = "loadedFiles_fileId_seq",
+      sequenceName = "loadedFiles_fileId_seq",
       allocationSize = 10)
   private long fileId;
 
@@ -26,6 +26,9 @@ public class ProcessedFiles {
 
   @Column(name = "`sequenceId`", nullable = false)
   private String sequenceId;
+
+  @Column(name = "`manifestTime`", nullable = false)
+  private Date manifestTime;
 
   @Column(name = "`startTime`", nullable = true)
   private Date startTime;
@@ -36,11 +39,6 @@ public class ProcessedFiles {
   /** @return the fileId */
   public long getFileId() {
     return fileId;
-  }
-
-  /** @param fileId the fileId to set */
-  public void setFileId(long fileId) {
-    this.fileId = fileId;
   }
 
   /** @return the rifType */
@@ -61,6 +59,16 @@ public class ProcessedFiles {
   /** @param sequenceId the sequenceId to set */
   public void setSequenceId(String sequenceId) {
     this.sequenceId = sequenceId;
+  }
+
+  /** @return the manifestTime */
+  public Date getManifestTime() {
+    return manifestTime;
+  }
+
+  /** @param manifestTime the manifestTime to set */
+  public void setManifestTime(Date manifestTime) {
+    this.manifestTime = manifestTime;
   }
 
   /** @return the startTime */

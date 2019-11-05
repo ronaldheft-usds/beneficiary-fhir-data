@@ -7,9 +7,9 @@ import javax.persistence.IdClass;
 import javax.persistence.Table;
 
 @Entity
-@Table(name = "`ProcessedBeneficiaries`")
-@IdClass(ProcessedBeneficiariesId.class)
-public class ProcessedBeneficiaries {
+@Table(name = "`LoadedBeneficiaries`")
+@IdClass(LoadedBeneficiariesId.class)
+public class LoadedBeneficiaries {
   @Column(name = "`fileId`", nullable = false)
   @Id
   private long fileId;
