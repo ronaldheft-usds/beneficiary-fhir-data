@@ -8,8 +8,8 @@ import javax.persistence.Table;
 
 @Entity
 @Table(name = "`LoadedBeneficiaries`")
-@IdClass(LoadedBeneficiariesId.class)
-public class LoadedBeneficiaries {
+@IdClass(LoadedBeneficiaryId.class)
+public class LoadedBeneficiary {
   @Column(name = "`fileId`", nullable = false)
   @Id
   private long fileId;

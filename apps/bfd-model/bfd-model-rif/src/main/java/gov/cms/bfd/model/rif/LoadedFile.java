@@ -1,5 +1,6 @@
 package gov.cms.bfd.model.rif;
 
+import java.time.Instant;
 import java.util.Date;
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -11,7 +12,7 @@ import javax.persistence.Table;
 
 @Entity
 @Table(name = "`LoadedFiles`")
-public class LoadedFiles {
+public class LoadedFile {
   @Id
   @Column(name = "`fileId`", nullable = false)
   @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "loadedFiles_fileId_seq")
@@ -24,9 +25,6 @@ public class LoadedFiles {
   @Column(name = "`rifType`", nullable = false)
   private String rifType;
 
-  @Column(name = "`sequenceId`", nullable = false)
-  private String sequenceId;
-
   @Column(name = "`manifestTime`", nullable = false)
   private Date manifestTime;
 
@@ -35,6 +33,20 @@ public class LoadedFiles {
 
   @Column(name = "`endTime`", nullable = true)
   private Date endTime;
+
+  /**
+   * Create a LoadedFile structure from a rifFileEvent
+   *
+   * @param rifFileEvent to use
+   * @return a new loadedFile structure
+   */
+  public static LoadedFile from(RifFileEvent rifFileEvent) {
+    LoadedFile loadedFile = new LoadedFile();
+    loadedFile.setRifType(rifFileEvent.getFile().getFileType().toString());
+    loadedFile.setManifestTime(Date.from(rifFileEvent.getParentFilesEvent().getTimestamp()));
+    loadedFile.setStartTime(Date.from(Instant.now()));
+    return loadedFile;
+  }
 
   /** @return the fileId */
   public long getFileId() {
@@ -49,16 +61,6 @@ public class LoadedFiles {
   /** @param rifType the rifType to set */
   public void setRifType(String rifType) {
     this.rifType = rifType;
-  }
-
-  /** @return the sequenceId */
-  public String getSequenceId() {
-    return sequenceId;
-  }
-
-  /** @param sequenceId the sequenceId to set */
-  public void setSequenceId(String sequenceId) {
-    this.sequenceId = sequenceId;
   }
 
   /** @return the manifestTime */

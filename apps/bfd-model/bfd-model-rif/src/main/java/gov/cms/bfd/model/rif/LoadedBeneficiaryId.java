@@ -2,8 +2,7 @@ package gov.cms.bfd.model.rif;
 
 import java.io.Serializable;
 
-public class LoadedBeneficiariesId implements Serializable {
-  /** */
+public class LoadedBeneficiaryId implements Serializable {
   private static final long serialVersionUID = 1L;
 
   private long fileId;
@@ -12,7 +11,7 @@ public class LoadedBeneficiariesId implements Serializable {
 
   // default constructor
 
-  public LoadedBeneficiariesId(long fileId, String beneficiaryId) {
+  public LoadedBeneficiaryId(long fileId, String beneficiaryId) {
     this.fileId = fileId;
     this.beneficiaryId = beneficiaryId;
   }
@@ -41,7 +40,7 @@ public class LoadedBeneficiariesId implements Serializable {
     if (this == obj) return true;
     if (obj == null) return false;
     if (getClass() != obj.getClass()) return false;
-    LoadedBeneficiariesId other = (LoadedBeneficiariesId) obj;
+    LoadedBeneficiaryId other = (LoadedBeneficiaryId) obj;
     if (beneficiaryId == null) {
       if (other.beneficiaryId != null) return false;
     } else if (!beneficiaryId.equals(other.beneficiaryId)) return false;

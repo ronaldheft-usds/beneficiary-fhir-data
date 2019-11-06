@@ -7,8 +7,10 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.BeneficiaryHistory_;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
+import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
+import gov.cms.bfd.model.rif.RifFileType;
 import gov.cms.bfd.model.rif.RifFilesEvent;
 import gov.cms.bfd.model.rif.samples.StaticRifResource;
 import gov.cms.bfd.model.rif.samples.StaticRifResourceGroup;
@@ -53,6 +55,28 @@ public final class RifLoaderIT {
     loadSample(dataSource, StaticRifResourceGroup.SAMPLE_A);
   }
 
+  @Test
+  public void loadedFile() {
+    loadSample(StaticRifResourceGroup.SAMPLE_A);
+
+    // Verify that loadedFile field
+    LoadAppOptions options = RifLoaderTestUtils.getLoadOptions();
+    EntityManagerFactory entityManagerFactory =
+        RifLoaderTestUtils.createEntityManagerFactory(options);
+    EntityManager entityManager = null;
+    try {
+      entityManager = entityManagerFactory.createEntityManager();
+      CriteriaBuilder builder = entityManager.getCriteriaBuilder();
+      CriteriaQuery<LoadedFile> criteria = builder.createQuery(LoadedFile.class);
+      Root<LoadedFile> root = criteria.from(LoadedFile.class);
+      criteria.select(root);
+      List<LoadedFile> loadedFiles = entityManager.createQuery(criteria).getResultList();
+      Assert.assertEquals(RifFileType.BENEFICIARY.toString(), loadedFiles.get(0).getRifType());
+    } finally {
+      if (entityManager != null) entityManager.close();
+    }
+  }
+
   /**
    * Runs {@link gov.cms.bfd.pipeline.rif.load.RifLoader} against the {@link
    * StaticRifResourceGroup#SAMPLE_U} data.
@@ -91,7 +115,7 @@ public final class RifLoaderIT {
                 lastUpdated -> {
                   Assert.assertTrue(
                       "Expected a recent lastUpdated timestamp",
-                      lastUpdated.after(Date.from(Instant.now().minus(1, ChronoUnit.MINUTES))));
+                      lastUpdated.after(Date.from(Instant.now().minus(10, ChronoUnit.MINUTES))));
                 });
       }
       Assert.assertEquals(4, beneficiaryHistoryEntries.size());

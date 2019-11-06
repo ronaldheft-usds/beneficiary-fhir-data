@@ -12,6 +12,7 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimCsvWriter;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
+import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RecordAction;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
@@ -295,6 +296,9 @@ public final class RifLoader implements AutoCloseable {
               }
             });
 
+    // Update the LoadedFiles table
+    processFile(dataToLoad.getSourceEvent(), errorHandler);
+
     /*
      * Design history note: Initially, this function just returned a stream
      * of CompleteableFutures, which seems like the obvious choice.
@@ -361,6 +365,34 @@ public final class RifLoader implements AutoCloseable {
     timerDataSetFile.stop();
 
     logRecordCounts();
+  }
+
+  /**
+   * Update the LoadedFiles table
+   *
+   * @param rifFileEvent is the file this about to be processed
+   * @param errorHandler is the place to call during errors
+   * @return the fileId of the new entity
+   */
+  private long processFile(RifFileEvent rifFileEvent, Consumer<Throwable> errorHandler) {
+    try {
+      LoadedFile loadedFile = LoadedFile.from(rifFileEvent);
+      EntityManager entityManager = null;
+      try {
+        entityManager = entityManagerFactory.createEntityManager();
+        entityManager.getTransaction().begin();
+        entityManager.persist(loadedFile);
+        entityManager.getTransaction().commit();
+        return loadedFile.getFileId();
+      } finally {
+        if (entityManager != null) {
+          entityManager.close();
+        }
+      }
+    } catch (Exception ex) {
+      errorHandler.accept(ex);
+      return 0;
+    }
   }
 
   /**
