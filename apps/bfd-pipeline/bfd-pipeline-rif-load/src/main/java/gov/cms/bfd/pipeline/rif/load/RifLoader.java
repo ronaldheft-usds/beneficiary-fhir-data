@@ -297,7 +297,7 @@ public final class RifLoader implements AutoCloseable {
             });
 
     // Update the LoadedFiles table
-    processFile(dataToLoad.getSourceEvent(), errorHandler);
+    updateLoadedTables(dataToLoad, errorHandler);
 
     /*
      * Design history note: Initially, this function just returned a stream
@@ -374,16 +374,15 @@ public final class RifLoader implements AutoCloseable {
    * @param errorHandler is the place to call during errors
    * @return the fileId of the new entity
    */
-  private long processFile(RifFileEvent rifFileEvent, Consumer<Throwable> errorHandler) {
+  private void updateLoadedTables(RifFileRecords fileRecords, Consumer<Throwable> errorHandler) {
     try {
-      LoadedFile loadedFile = LoadedFile.from(rifFileEvent);
+      LoadedFile loadedFile = LoadedFile.from(fileRecords.getSourceEvent());
       EntityManager entityManager = null;
       try {
         entityManager = entityManagerFactory.createEntityManager();
         entityManager.getTransaction().begin();
         entityManager.persist(loadedFile);
         entityManager.getTransaction().commit();
-        return loadedFile.getFileId();
       } finally {
         if (entityManager != null) {
           entityManager.close();
@@ -391,7 +390,6 @@ public final class RifLoader implements AutoCloseable {
       }
     } catch (Exception ex) {
       errorHandler.accept(ex);
-      return 0;
     }
   }
 
