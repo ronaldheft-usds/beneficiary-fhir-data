@@ -12,6 +12,8 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimCsvWriter;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
+import gov.cms.bfd.model.rif.LoadedBeneficiary;
+import gov.cms.bfd.model.rif.LoadedBeneficiaryId;
 import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RecordAction;
 import gov.cms.bfd.model.rif.RifFileEvent;
@@ -30,9 +32,11 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -50,6 +54,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.persistence.Entity;
+import javax.persistence.EntityExistsException;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.persistence.Persistence;
@@ -296,8 +301,9 @@ public final class RifLoader implements AutoCloseable {
               }
             });
 
-    // Update the LoadedFiles table
-    updateLoadedTables(dataToLoad, errorHandler);
+    // Insert the LoadedFiles table
+    long fileId = insertLoadedFiles(dataToLoad, errorHandler);
+    if (fileId < 0) return;
 
     /*
      * Design history note: Initially, this function just returned a stream
@@ -323,7 +329,8 @@ public final class RifLoader implements AutoCloseable {
              * pending. That's desirable behavior, as it prevents
              * OutOfMemoryErrors.
              */
-            processAsync(loadExecutor, recordsBatch, postgresBatch, resultHandler, errorHandler);
+            processAsync(
+                loadExecutor, recordsBatch, fileId, postgresBatch, resultHandler, errorHandler);
           };
 
       // Collect records into batches and submit each to batchProcessor.
@@ -361,6 +368,9 @@ public final class RifLoader implements AutoCloseable {
       }
     }
 
+    // Update the LoadedFiles table
+    updateLoadedFiles(fileId, errorHandler);
+
     LOGGER.info("Processed '{}'.", dataToLoad);
     timerDataSetFile.stop();
 
@@ -368,20 +378,49 @@ public final class RifLoader implements AutoCloseable {
   }
 
   /**
-   * Update the LoadedFiles table
+   * Insert an entry into the LoadedFiles table
    *
    * @param rifFileEvent is the file this about to be processed
    * @param errorHandler is the place to call during errors
    * @return the fileId of the new entity
    */
-  private void updateLoadedTables(RifFileRecords fileRecords, Consumer<Throwable> errorHandler) {
+  private long insertLoadedFiles(RifFileRecords fileRecords, Consumer<Throwable> errorHandler) {
     try {
       LoadedFile loadedFile = LoadedFile.from(fileRecords.getSourceEvent());
-      EntityManager entityManager = null;
+      EntityManager entityManager = entityManagerFactory.createEntityManager();
       try {
-        entityManager = entityManagerFactory.createEntityManager();
+        // Update LoadedFiles
         entityManager.getTransaction().begin();
         entityManager.persist(loadedFile);
+        entityManager.getTransaction().commit();
+        return loadedFile.getFileId();
+      } finally {
+        if (entityManager != null) {
+          entityManager.close();
+        }
+      }
+    } catch (Exception ex) {
+      errorHandler.accept(ex);
+      return -1; // Bad value
+    }
+  }
+
+  /**
+   * Update an entry into the LoadedFiles table with a stop timestamp
+   *
+   * @param fileId is the entry to loadedFiles
+   * @param errorHandler is the place to call during errors
+   */
+  private void updateLoadedFiles(long fileId, Consumer<Throwable> errorHandler) {
+    try {
+      EntityManager entityManager = entityManagerFactory.createEntityManager();
+      try {
+        // Update LoadedFiles
+        entityManager.getTransaction().begin();
+        LoadedFile loadedFile = entityManager.find(LoadedFile.class, fileId);
+        if (loadedFile != null) {
+          loadedFile.setEndTime(Date.from(Instant.now()));
+        }
         entityManager.getTransaction().commit();
       } finally {
         if (entityManager != null) {
@@ -396,6 +435,7 @@ public final class RifLoader implements AutoCloseable {
   /**
    * @param loadExecutor the {@link BlockingThreadPoolExecutor} to use for asynchronous load tasks
    * @param recordsBatch the {@link RifRecordEvent}s to process
+   * @param fileId the id from the {@LoadedFile} associated with this batch
    * @param postgresBatch the {@link PostgreSqlCopyInserter} for the current set of {@link
    *     RifFilesEvent}s being processed
    * @param resultHandler the {@link Consumer} to notify when the batch completes successfully
@@ -404,13 +444,14 @@ public final class RifLoader implements AutoCloseable {
   private void processAsync(
       BlockingThreadPoolExecutor loadExecutor,
       List<RifRecordEvent<?>> recordsBatch,
+      long fileId,
       PostgreSqlCopyInserter postgresBatch,
       Consumer<RifRecordLoadResult> resultHandler,
       Consumer<Throwable> errorHandler) {
     loadExecutor.submit(
         () -> {
           try {
-            List<RifRecordLoadResult> processResults = process(recordsBatch, postgresBatch);
+            List<RifRecordLoadResult> processResults = process(recordsBatch, fileId, postgresBatch);
             processResults.forEach(resultHandler::accept);
           } catch (Throwable e) {
             errorHandler.accept(e);
@@ -420,12 +461,13 @@ public final class RifLoader implements AutoCloseable {
 
   /**
    * @param recordsBatch the {@link RifRecordEvent}s to process
+   * @param fileId the id from the {@LoadedFile} associated with this batch
    * @param postgresBatch the {@link PostgreSqlCopyInserter} for the current set of {@link
    *     RifFilesEvent}s being processed
    * @return the {@link RifRecordLoadResult}s that model the results of the operation
    */
   private List<RifRecordLoadResult> process(
-      List<RifRecordEvent<?>> recordsBatch, PostgreSqlCopyInserter postgresBatch) {
+      List<RifRecordEvent<?>> recordsBatch, long fileId, PostgreSqlCopyInserter postgresBatch) {
     RifFileEvent fileEvent = recordsBatch.get(0).getFileEvent();
     MetricRegistry fileEventMetrics = fileEvent.getEventMetrics();
 
@@ -460,16 +502,18 @@ public final class RifLoader implements AutoCloseable {
     try {
       entityManager = entityManagerFactory.createEntityManager();
       entityManager.getTransaction().begin();
-
       List<RifRecordLoadResult> loadResults = new ArrayList<>(recordsBatch.size());
       for (RifRecordEvent<?> rifRecordEvent : recordsBatch) {
         RecordAction recordAction = rifRecordEvent.getRecordAction();
         Object record = rifRecordEvent.getRecord();
 
         LOGGER.trace("Loading '{}' record.", rifFileType);
+
+        // Update the LoadedBeneficiaries table
+        updateLoadedBeneficiaries(entityManager, fileId, rifRecordEvent.getBeneficiaryId());
+
         LoadStrategy strategy = selectStrategy(recordAction);
         LoadAction loadAction;
-
         if (strategy == LoadStrategy.INSERT_IDEMPOTENT) {
           // Check to see if record already exists.
           Timer.Context timerIdempotencyQuery =
@@ -580,6 +624,26 @@ public final class RifLoader implements AutoCloseable {
       oldBeneCopy.setMedicareBeneficiaryId(oldBeneficiaryRecord.getMedicareBeneficiaryId());
 
       entityManager.persist(oldBeneCopy);
+    }
+  }
+
+  /**
+   * Update the LoadedBeneficiaries table
+   *
+   * @param entityManager to use
+   * @param fileId to use for the row
+   * @param beneficiaryId to use for the row
+   */
+  private static void updateLoadedBeneficiaries(
+      EntityManager entityManager, long fileId, String beneficiaryId) {
+    if (Objects.isNull(
+        entityManager.find(
+            LoadedBeneficiary.class, new LoadedBeneficiaryId(fileId, beneficiaryId)))) {
+      try {
+        LoadedBeneficiary loadedBeneficiary = LoadedBeneficiary.create(fileId, beneficiaryId);
+        entityManager.persist(loadedBeneficiary);
+      } catch (EntityExistsException ex) {
+      }
     }
   }
 

@@ -10,6 +10,7 @@ public class LoadedBeneficiaryId implements Serializable {
   private String beneficiaryId;
 
   // default constructor
+  public LoadedBeneficiaryId() {}
 
   public LoadedBeneficiaryId(long fileId, String beneficiaryId) {
     this.fileId = fileId;

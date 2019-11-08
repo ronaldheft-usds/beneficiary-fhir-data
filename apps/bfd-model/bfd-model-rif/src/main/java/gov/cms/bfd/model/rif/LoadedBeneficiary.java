@@ -18,6 +18,20 @@ public class LoadedBeneficiary {
   @Id
   private String beneficiaryId;
 
+  /**
+   * Create an entity
+   *
+   * @param fileId associated with the load
+   * @param beneficiaryId associated with the load
+   * @return a new entity
+   */
+  public static LoadedBeneficiary create(long fileId, String beneficiaryId) {
+    LoadedBeneficiary entity = new LoadedBeneficiary();
+    entity.setFileId(fileId);
+    entity.setBeneficiaryId(beneficiaryId);
+    return entity;
+  }
+
   /** @return the fileId */
   public long getFileId() {
     return fileId;

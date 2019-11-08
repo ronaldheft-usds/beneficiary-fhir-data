@@ -7,6 +7,7 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.BeneficiaryHistory_;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
+import gov.cms.bfd.model.rif.LoadedBeneficiary;
 import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
@@ -58,23 +59,33 @@ public final class RifLoaderIT {
   @Test
   public void loadedFile() {
     loadSample(StaticRifResourceGroup.SAMPLE_A);
+    RifLoaderTestUtils.doTestDb(
+        entityManager -> {
+          CriteriaBuilder builder = entityManager.getCriteriaBuilder();
 
-    // Verify that loadedFile field
-    LoadAppOptions options = RifLoaderTestUtils.getLoadOptions();
-    EntityManagerFactory entityManagerFactory =
-        RifLoaderTestUtils.createEntityManagerFactory(options);
-    EntityManager entityManager = null;
-    try {
-      entityManager = entityManagerFactory.createEntityManager();
-      CriteriaBuilder builder = entityManager.getCriteriaBuilder();
-      CriteriaQuery<LoadedFile> criteria = builder.createQuery(LoadedFile.class);
-      Root<LoadedFile> root = criteria.from(LoadedFile.class);
-      criteria.select(root);
-      List<LoadedFile> loadedFiles = entityManager.createQuery(criteria).getResultList();
-      Assert.assertEquals(RifFileType.BENEFICIARY.toString(), loadedFiles.get(0).getRifType());
-    } finally {
-      if (entityManager != null) entityManager.close();
-    }
+          // Verify that loadedFile field
+          CriteriaQuery<LoadedFile> filesCriteria = builder.createQuery(LoadedFile.class);
+          filesCriteria.select(filesCriteria.from(LoadedFile.class));
+          List<LoadedFile> loadedFiles = entityManager.createQuery(filesCriteria).getResultList();
+          Assert.assertTrue("Expected to have loaded files", loadedFiles.size() > 0);
+          LoadedFile loadedFile = loadedFiles.get(0);
+          Assert.assertEquals(RifFileType.BENEFICIARY.toString(), loadedFile.getRifType());
+          Assert.assertNotNull(loadedFile.getStartTime());
+          Assert.assertNotNull(loadedFile.getEndTime());
+          Assert.assertTrue(
+              "Expected start-time is before end-time",
+              loadedFile.getStartTime().compareTo(loadedFile.getEndTime()) <= 0);
+
+          // Verify that LoadedBeneficaries table was loaded
+          CriteriaQuery<String> beneCriteria = builder.createQuery(String.class);
+          Root<LoadedBeneficiary> root = beneCriteria.from(LoadedBeneficiary.class);
+          beneCriteria
+              .select(root.get("beneficiaryId"))
+              .where(builder.equal(root.get("fileId"), loadedFile.getFileId()));
+          List<String> ids = entityManager.createQuery(beneCriteria).getResultList();
+          Assert.assertTrue("Expected to have at least one beneficiary loaded", ids.size() > 0);
+          Assert.assertEquals("Expected to match the sample-a beneficiary", "567834", ids.get(0));
+        });
   }
 
   /**

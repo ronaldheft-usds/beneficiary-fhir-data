@@ -62,6 +62,7 @@ public final class RifFilesProcessorTest {
     Assert.assertTrue(rifRecordEvent.getRecord() instanceof Beneficiary);
 
     Beneficiary beneRow = (Beneficiary) rifRecordEvent.getRecord();
+    Assert.assertEquals(beneRow.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
     Assert.assertEquals("567834", beneRow.getBeneficiaryId());
     Assert.assertEquals("MO", beneRow.getStateCode());
@@ -116,6 +117,7 @@ public final class RifFilesProcessorTest {
     Assert.assertNotNull(rifRecordEvent0.getRecord());
     Assert.assertTrue(rifRecordEvent0.getRecord() instanceof BeneficiaryHistory);
     BeneficiaryHistory beneficiaryHistory0 = (BeneficiaryHistory) rifRecordEvent0.getRecord();
+    Assert.assertEquals(beneficiaryHistory0.getBeneficiaryId(), rifRecordEvent0.getBeneficiaryId());
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent0.getRecordAction());
     Assert.assertEquals("567834", beneficiaryHistory0.getBeneficiaryId());
     Assert.assertEquals(LocalDate.of(1979, Month.MARCH, 17), beneficiaryHistory0.getBirthDate());
@@ -221,6 +223,7 @@ public final class RifFilesProcessorTest {
 
     PartDEvent pdeRow = (PartDEvent) rifRecordEvent.getRecord();
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
+    Assert.assertEquals(pdeRow.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals("89", pdeRow.getEventId());
     Assert.assertEquals(new BigDecimal(900), pdeRow.getClaimGroupId());
     Assert.assertEquals("567834", pdeRow.getBeneficiaryId());
@@ -308,6 +311,7 @@ public final class RifFilesProcessorTest {
     // Verify the claim header.
     CarrierClaim claimGroup = (CarrierClaim) rifRecordEvent.getRecord();
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
+    Assert.assertEquals(claimGroup.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals("567834", claimGroup.getBeneficiaryId());
     Assert.assertEquals("9991831999", claimGroup.getClaimId());
     Assert.assertEquals(new BigDecimal(900), claimGroup.getClaimGroupId());
@@ -442,6 +446,7 @@ public final class RifFilesProcessorTest {
     // Verify the claim header.
     InpatientClaim claimGroup = (InpatientClaim) rifRecordEvent.getRecord();
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
+    Assert.assertEquals(claimGroup.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals("567834", claimGroup.getBeneficiaryId());
     Assert.assertEquals("333333222222", claimGroup.getClaimId());
     Assert.assertEquals(new BigDecimal(900), claimGroup.getClaimGroupId());
@@ -557,6 +562,7 @@ public final class RifFilesProcessorTest {
     // Verify the claim header.
     OutpatientClaim claimGroup = (OutpatientClaim) rifRecordEvent.getRecord();
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
+    Assert.assertEquals(claimGroup.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals("567834", claimGroup.getBeneficiaryId());
     Assert.assertEquals("1234567890", claimGroup.getClaimId());
     Assert.assertEquals(new BigDecimal(900), claimGroup.getClaimGroupId());
@@ -650,6 +656,7 @@ public final class RifFilesProcessorTest {
     // Verify the claim header.
     SNFClaim claimGroup = (SNFClaim) rifRecordEvent.getRecord();
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
+    Assert.assertEquals(claimGroup.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals("567834", claimGroup.getBeneficiaryId());
     Assert.assertEquals("777777777", claimGroup.getClaimId());
     Assert.assertEquals(new BigDecimal(900), claimGroup.getClaimGroupId());
@@ -759,6 +766,7 @@ public final class RifFilesProcessorTest {
     // Verify the claim header.
     HospiceClaim claimGroup = (HospiceClaim) rifRecordEvent.getRecord();
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
+    Assert.assertEquals(claimGroup.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals("567834", claimGroup.getBeneficiaryId());
     Assert.assertEquals("9992223422", claimGroup.getClaimId());
     Assert.assertEquals(new BigDecimal(900), claimGroup.getClaimGroupId());
@@ -840,6 +848,7 @@ public final class RifFilesProcessorTest {
     // Verify the claim header.
     HHAClaim claimGroup = (HHAClaim) rifRecordEvent.getRecord();
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
+    Assert.assertEquals(claimGroup.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals("567834", claimGroup.getBeneficiaryId());
     Assert.assertEquals("2925555555", claimGroup.getClaimId());
     Assert.assertEquals(new BigDecimal(900), claimGroup.getClaimGroupId());
@@ -922,6 +931,7 @@ public final class RifFilesProcessorTest {
     // Verify the claim header.
     DMEClaim claimGroup = (DMEClaim) rifRecordEvent.getRecord();
     Assert.assertEquals(RecordAction.INSERT, rifRecordEvent.getRecordAction());
+    Assert.assertEquals(claimGroup.getBeneficiaryId(), rifRecordEvent.getBeneficiaryId());
     Assert.assertEquals("567834", claimGroup.getBeneficiaryId());
     Assert.assertEquals("2188888888", claimGroup.getClaimId());
     Assert.assertEquals(new BigDecimal(900), claimGroup.getClaimGroupId());
