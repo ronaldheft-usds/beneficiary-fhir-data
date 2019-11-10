@@ -36,27 +36,27 @@ alter table "SNFClaims" add column lastUpdated timestamp with time zone;
 -- Add tables that track the ETL process
 --
 
--- One row for each RIF file loaded. The timestamps represent start and end time of processing the file. 
-create table "LoadedFiles" (
-	"fileId" bigint primary key,							-- Internal db key
-	"rifType" varchar(48) not null,							-- The RifFileType 
-	"manifestTime" timestamp with time zone not null,		-- The timestamp from the manifest file. 
-	"startTime" timestamp with time zone,					-- Timestamp from the pipeline process	
-	"endTime" timestamp with time zone						-- Timestamp from the pipeline process
+-- One row for each batch of RIF files. The timestamps represent start and end time of processing the .
+--
+create table "Batches" (
+	"batchId" bigint primary key,							-- Internal db key
+	"fileCount"	int not null, 								-- The number of RIF files in this batch
+	"firstUpdated" timestamp with time zone,				-- The timestamp before processing the first RIF file of this batch
+	"lastUpdated" timestamp with time zone					-- The timestamp after processing the last RIF file of this batch
 )
 
-create sequence loadedFiles_fileId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
+create sequence batches_batchId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
 
--- One row for each beneficiary updated by a RIF file
-create table "LoadedBeneficiaries" (
-	"fileId" bigint not null,								-- One set per RifFile
-	"beneficiaryId" varchar(15) not null,					-- The beneficiaries in the rif file
-	primary key ("fileId", "beneficiaryId")
+-- One row for each beneficiary updated in a batch
+create table "BatchBeneficiaries" (
+	"batchId" bigint not null,								-- One set per batch
+	"beneficiaryId" varchar(15) not null,					-- The beneficiaries in the batch file
+	primary key ("batchId", "beneficiaryId")
 )
 ;
 
-alter table "LoadedBeneficiaries" 				
-	add constraint "loadedBeneficiaries_fileId" 
-		foreign key ("fileId") 
-		references "LoadedFiles";
+alter table "BatchBeneficiaries" 				
+	add constraint "batchBeneficiaries_batchId" 
+		foreign key ("batchId") 
+		references " ";
 
