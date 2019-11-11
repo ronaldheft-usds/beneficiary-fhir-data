@@ -62,19 +62,20 @@ public final class RifLoaderIT {
         entityManager -> {
           CriteriaBuilder builder = entityManager.getCriteriaBuilder();
 
-          // Verify that batch field
+          // Verify that Cluster field
           CriteriaQuery<Cluster> filesCriteria = builder.createQuery(Cluster.class);
           filesCriteria.select(filesCriteria.from(Cluster.class));
           List<Cluster> clusters = entityManager.createQuery(filesCriteria).getResultList();
-          Assert.assertTrue("Expected to have loaded files", clusters.size() > 0);
+          Assert.assertEquals("Expected to have one cluster", 1, clusters.size());
           Cluster cluster = clusters.get(0);
           Assert.assertNotNull(cluster.getLastUpdated());
           Assert.assertNotNull(cluster.getFirstUpdated());
           Assert.assertTrue(
               "Expected first updated is before last updated",
               cluster.getFirstUpdated().compareTo(cluster.getLastUpdated()) <= 0);
+          Assert.assertTrue(cluster.getFileCount() > 0);
 
-          // Verify that LoadedBeneficaries table was loaded
+          // Verify that ClusterBeneficaries table was loaded
           CriteriaQuery<String> beneCriteria = builder.createQuery(String.class);
           Root<ClusterBeneficiary> root = beneCriteria.from(ClusterBeneficiary.class);
           beneCriteria
