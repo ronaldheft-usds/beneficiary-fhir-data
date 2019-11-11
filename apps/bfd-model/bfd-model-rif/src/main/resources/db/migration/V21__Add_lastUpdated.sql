@@ -38,25 +38,24 @@ alter table "SNFClaims" add column lastUpdated timestamp with time zone;
 
 -- One row for each batch of RIF files. The timestamps represent start and end time of processing the .
 --
-create table "Batches" (
-	"batchId" bigint primary key,							-- Internal db key
+create table "Clusters" (
+	"clusterId" bigint primary key,							-- Internal db key
 	"fileCount"	int not null, 								-- The number of RIF files in this batch
 	"firstUpdated" timestamp with time zone,				-- The timestamp before processing the first RIF file of this batch
 	"lastUpdated" timestamp with time zone					-- The timestamp after processing the last RIF file of this batch
 )
 
-create sequence batches_batchId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
+create sequence clusters_clusterId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
 
 -- One row for each beneficiary updated in a batch
-create table "BatchBeneficiaries" (
-	"batchId" bigint not null,								-- One set per batch
+create table "ClusterBeneficiaries" (
+	"clusterId" bigint not null,								-- One set per batch
 	"beneficiaryId" varchar(15) not null,					-- The beneficiaries in the batch file
-	primary key ("batchId", "beneficiaryId")
+	primary key ("clusterId", "beneficiaryId")
 )
 ;
 
-alter table "BatchBeneficiaries" 				
-	add constraint "batchBeneficiaries_batchId" 
-		foreign key ("batchId") 
-		references " ";
-
+alter table "ClusterBeneficiaries" 				
+	add constraint "clusterBeneficiaries_clusterId" 
+		foreign key ("clusterId") 
+		references "Clusters";
