@@ -7,11 +7,10 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.BeneficiaryHistory_;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
-import gov.cms.bfd.model.rif.LoadedBeneficiary;
-import gov.cms.bfd.model.rif.LoadedFile;
+import gov.cms.bfd.model.rif.Cluster;
+import gov.cms.bfd.model.rif.ClusterBeneficiary;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
-import gov.cms.bfd.model.rif.RifFileType;
 import gov.cms.bfd.model.rif.RifFilesEvent;
 import gov.cms.bfd.model.rif.samples.StaticRifResource;
 import gov.cms.bfd.model.rif.samples.StaticRifResourceGroup;
@@ -57,31 +56,30 @@ public final class RifLoaderIT {
   }
 
   @Test
-  public void loadedFile() {
+  public void loadCluster() {
     loadSample(StaticRifResourceGroup.SAMPLE_A);
     RifLoaderTestUtils.doTestDb(
         entityManager -> {
           CriteriaBuilder builder = entityManager.getCriteriaBuilder();
 
-          // Verify that loadedFile field
-          CriteriaQuery<LoadedFile> filesCriteria = builder.createQuery(LoadedFile.class);
-          filesCriteria.select(filesCriteria.from(LoadedFile.class));
-          List<LoadedFile> loadedFiles = entityManager.createQuery(filesCriteria).getResultList();
-          Assert.assertTrue("Expected to have loaded files", loadedFiles.size() > 0);
-          LoadedFile loadedFile = loadedFiles.get(0);
-          Assert.assertEquals(RifFileType.BENEFICIARY.toString(), loadedFile.getRifType());
-          Assert.assertNotNull(loadedFile.getStartTime());
-          Assert.assertNotNull(loadedFile.getEndTime());
+          // Verify that batch field
+          CriteriaQuery<Cluster> filesCriteria = builder.createQuery(Cluster.class);
+          filesCriteria.select(filesCriteria.from(Cluster.class));
+          List<Cluster> clusters = entityManager.createQuery(filesCriteria).getResultList();
+          Assert.assertTrue("Expected to have loaded files", clusters.size() > 0);
+          Cluster cluster = clusters.get(0);
+          Assert.assertNotNull(cluster.getLastUpdated());
+          Assert.assertNotNull(cluster.getFirstUpdated());
           Assert.assertTrue(
-              "Expected start-time is before end-time",
-              loadedFile.getStartTime().compareTo(loadedFile.getEndTime()) <= 0);
+              "Expected first updated is before last updated",
+              cluster.getFirstUpdated().compareTo(cluster.getLastUpdated()) <= 0);
 
           // Verify that LoadedBeneficaries table was loaded
           CriteriaQuery<String> beneCriteria = builder.createQuery(String.class);
-          Root<LoadedBeneficiary> root = beneCriteria.from(LoadedBeneficiary.class);
+          Root<ClusterBeneficiary> root = beneCriteria.from(ClusterBeneficiary.class);
           beneCriteria
               .select(root.get("beneficiaryId"))
-              .where(builder.equal(root.get("fileId"), loadedFile.getFileId()));
+              .where(builder.equal(root.get("clusterId"), cluster.getClusterId()));
           List<String> ids = entityManager.createQuery(beneCriteria).getResultList();
           Assert.assertTrue("Expected to have at least one beneficiary loaded", ids.size() > 0);
           Assert.assertEquals("Expected to match the sample-a beneficiary", "567834", ids.get(0));

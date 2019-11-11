@@ -12,9 +12,9 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimCsvWriter;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
-import gov.cms.bfd.model.rif.LoadedBeneficiary;
-import gov.cms.bfd.model.rif.LoadedBeneficiaryId;
-import gov.cms.bfd.model.rif.LoadedFile;
+import gov.cms.bfd.model.rif.Cluster;
+import gov.cms.bfd.model.rif.ClusterBeneficiary;
+import gov.cms.bfd.model.rif.ClusterBeneficiaryId;
 import gov.cms.bfd.model.rif.RecordAction;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
@@ -33,6 +33,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -57,6 +58,7 @@ import javax.persistence.Entity;
 import javax.persistence.EntityExistsException;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.persistence.LockModeType;
 import javax.persistence.Persistence;
 import javax.persistence.Table;
 import javax.persistence.criteria.CriteriaBuilder;
@@ -302,8 +304,8 @@ public final class RifLoader implements AutoCloseable {
             });
 
     // Insert the LoadedFiles table
-    long fileId = insertLoadedFiles(dataToLoad, errorHandler);
-    if (fileId < 0) return;
+    long clusterId = findOrCreateCluster(dataToLoad.getSourceEvent(), errorHandler);
+    if (clusterId < 0) return;
 
     /*
      * Design history note: Initially, this function just returned a stream
@@ -330,7 +332,7 @@ public final class RifLoader implements AutoCloseable {
              * OutOfMemoryErrors.
              */
             processAsync(
-                loadExecutor, recordsBatch, fileId, postgresBatch, resultHandler, errorHandler);
+                loadExecutor, recordsBatch, clusterId, postgresBatch, resultHandler, errorHandler);
           };
 
       // Collect records into batches and submit each to batchProcessor.
@@ -368,9 +370,6 @@ public final class RifLoader implements AutoCloseable {
       }
     }
 
-    // Update the LoadedFiles table
-    updateLoadedFiles(fileId, errorHandler);
-
     LOGGER.info("Processed '{}'.", dataToLoad);
     timerDataSetFile.stop();
 
@@ -378,64 +377,9 @@ public final class RifLoader implements AutoCloseable {
   }
 
   /**
-   * Insert an entry into the LoadedFiles table
-   *
-   * @param rifFileEvent is the file this about to be processed
-   * @param errorHandler is the place to call during errors
-   * @return the fileId of the new entity
-   */
-  private long insertLoadedFiles(RifFileRecords fileRecords, Consumer<Throwable> errorHandler) {
-    try {
-      LoadedFile loadedFile = LoadedFile.from(fileRecords.getSourceEvent());
-      EntityManager entityManager = entityManagerFactory.createEntityManager();
-      try {
-        // Update LoadedFiles
-        entityManager.getTransaction().begin();
-        entityManager.persist(loadedFile);
-        entityManager.getTransaction().commit();
-        return loadedFile.getFileId();
-      } finally {
-        if (entityManager != null) {
-          entityManager.close();
-        }
-      }
-    } catch (Exception ex) {
-      errorHandler.accept(ex);
-      return -1; // Bad value
-    }
-  }
-
-  /**
-   * Update an entry into the LoadedFiles table with a stop timestamp
-   *
-   * @param fileId is the entry to loadedFiles
-   * @param errorHandler is the place to call during errors
-   */
-  private void updateLoadedFiles(long fileId, Consumer<Throwable> errorHandler) {
-    try {
-      EntityManager entityManager = entityManagerFactory.createEntityManager();
-      try {
-        // Update LoadedFiles
-        entityManager.getTransaction().begin();
-        LoadedFile loadedFile = entityManager.find(LoadedFile.class, fileId);
-        if (loadedFile != null) {
-          loadedFile.setEndTime(Date.from(Instant.now()));
-        }
-        entityManager.getTransaction().commit();
-      } finally {
-        if (entityManager != null) {
-          entityManager.close();
-        }
-      }
-    } catch (Exception ex) {
-      errorHandler.accept(ex);
-    }
-  }
-
-  /**
    * @param loadExecutor the {@link BlockingThreadPoolExecutor} to use for asynchronous load tasks
    * @param recordsBatch the {@link RifRecordEvent}s to process
-   * @param fileId the id from the {@LoadedFile} associated with this batch
+   * @param clusterId the id from the {@Cluster} associated with this batch
    * @param postgresBatch the {@link PostgreSqlCopyInserter} for the current set of {@link
    *     RifFilesEvent}s being processed
    * @param resultHandler the {@link Consumer} to notify when the batch completes successfully
@@ -444,14 +388,15 @@ public final class RifLoader implements AutoCloseable {
   private void processAsync(
       BlockingThreadPoolExecutor loadExecutor,
       List<RifRecordEvent<?>> recordsBatch,
-      long fileId,
+      long clusterId,
       PostgreSqlCopyInserter postgresBatch,
       Consumer<RifRecordLoadResult> resultHandler,
       Consumer<Throwable> errorHandler) {
     loadExecutor.submit(
         () -> {
           try {
-            List<RifRecordLoadResult> processResults = process(recordsBatch, fileId, postgresBatch);
+            List<RifRecordLoadResult> processResults =
+                process(recordsBatch, clusterId, postgresBatch);
             processResults.forEach(resultHandler::accept);
           } catch (Throwable e) {
             errorHandler.accept(e);
@@ -461,13 +406,13 @@ public final class RifLoader implements AutoCloseable {
 
   /**
    * @param recordsBatch the {@link RifRecordEvent}s to process
-   * @param fileId the id from the {@LoadedFile} associated with this batch
+   * @param clusterId the id from the {@Cluster} associated with this batch
    * @param postgresBatch the {@link PostgreSqlCopyInserter} for the current set of {@link
    *     RifFilesEvent}s being processed
    * @return the {@link RifRecordLoadResult}s that model the results of the operation
    */
   private List<RifRecordLoadResult> process(
-      List<RifRecordEvent<?>> recordsBatch, long fileId, PostgreSqlCopyInserter postgresBatch) {
+      List<RifRecordEvent<?>> recordsBatch, long clusterId, PostgreSqlCopyInserter postgresBatch) {
     RifFileEvent fileEvent = recordsBatch.get(0).getFileEvent();
     MetricRegistry fileEventMetrics = fileEvent.getEventMetrics();
 
@@ -510,7 +455,7 @@ public final class RifLoader implements AutoCloseable {
         LOGGER.trace("Loading '{}' record.", rifFileType);
 
         // Update the LoadedBeneficiaries table
-        updateLoadedBeneficiaries(entityManager, fileId, rifRecordEvent.getBeneficiaryId());
+        updateClusterBeneficiaries(entityManager, clusterId, rifRecordEvent.getBeneficiaryId());
 
         LoadStrategy strategy = selectStrategy(recordAction);
         LoadAction loadAction;
@@ -563,6 +508,7 @@ public final class RifLoader implements AutoCloseable {
 
         loadResults.add(new RifRecordLoadResult(rifRecordEvent, loadAction));
       }
+      updateCluster(entityManager, clusterId);
 
       entityManager.getTransaction().commit();
 
@@ -628,23 +574,116 @@ public final class RifLoader implements AutoCloseable {
   }
 
   /**
-   * Update the LoadedBeneficiaries table
+   * Find or create the cluster for this rifFileEvent
+   *
+   * @param rifFileEvent is the file this about to be processed
+   * @param errorHandler is the place to call during errors
+   * @return the id of the current or new cluster
+   */
+  private long findOrCreateCluster(RifFileEvent rifFileEvent, Consumer<Throwable> errorHandler) {
+    try {
+      EntityManager em = entityManagerFactory.createEntityManager();
+      try {
+        em.getTransaction().begin();
+
+        /*
+         * Developer's note: This get and set is done as one atomic transation.
+         * If there are multiple writers (ie. pipelines), then we want to serialize these
+         * inserts and updates.
+         */
+        List<Cluster> currentClusters =
+            em.createQuery("select c from Cluster c order by c.lastUpdated desc", Cluster.class)
+                .setLockMode(LockModeType.PESSIMISTIC_READ)
+                .setHint("javax.persistence.lock.timeout", 1000)
+                .setMaxResults(5)
+                .getResultList();
+
+        Cluster cluster = null;
+        if (shouldStartCluster(rifFileEvent, currentClusters)) {
+          cluster = Cluster.create();
+          em.persist(cluster);
+        } else {
+          cluster = currentClusters.get(0);
+          cluster.setLastUpdated(Date.from(Instant.now()));
+          cluster.setFileCount(cluster.getFileCount() + 1);
+        }
+
+        em.getTransaction().commit();
+        return cluster.getClusterId();
+      } finally {
+        if (em != null) {
+          em.close();
+        }
+      }
+    } catch (Exception ex) {
+      errorHandler.accept(ex);
+      return -1; // Bad value
+    }
+  }
+
+  /**
+   * Clustering logic for rifFileEvents
+   *
+   * @param rifFileEvent is the triggering event
+   * @param currentClusters the list of current clusters
+   * @return true if a new cluster should be started or false if the current cluster should be
+   *     continued
+   */
+  static boolean shouldStartCluster(RifFileEvent rifFileEvent, List<Cluster> currentClusters) {
+    /**
+     * Dev Note: Clusters represent spans of time and the beneficiaries that were updated in that
+     * time span. They are used to optimize EOB searches with lastUpdated specified which are
+     * typically done in by FIHR Bulk Exporters.
+     *
+     * <p>There are many possible features on which it is possible to cluster rifFileEvents. This
+     * one is only based on time to allow some variation in implementation by the CCW. This should
+     * work with today's weekly updates and possible increases in update frequency.
+     */
+
+    // If there are no other clusters
+    if (currentClusters.size() == 0) return true;
+
+    // If the last updated was recent
+    Cluster currentCluster = currentClusters.get(0);
+    Date deliniationTime = Date.from(Instant.now().minus(12, ChronoUnit.HOURS));
+    if (currentCluster.getLastUpdated().before(deliniationTime)) return true;
+
+    // If the cluster is too long
+    Date earliestFirstUpdated = Date.from(Instant.now().minus(96, ChronoUnit.HOURS));
+    if (currentCluster.getFirstUpdated().before(earliestFirstUpdated)) return true;
+
+    return false;
+  }
+
+  /**
+   * Update the ClusterBeneficiaries table
    *
    * @param entityManager to use
-   * @param fileId to use for the row
+   * @param clusterId to use for the row
    * @param beneficiaryId to use for the row
    */
-  private static void updateLoadedBeneficiaries(
-      EntityManager entityManager, long fileId, String beneficiaryId) {
+  private static void updateClusterBeneficiaries(
+      EntityManager entityManager, long clusterId, String beneficiaryId) {
     if (Objects.isNull(
         entityManager.find(
-            LoadedBeneficiary.class, new LoadedBeneficiaryId(fileId, beneficiaryId)))) {
+            ClusterBeneficiary.class, new ClusterBeneficiaryId(clusterId, beneficiaryId)))) {
       try {
-        LoadedBeneficiary loadedBeneficiary = LoadedBeneficiary.create(fileId, beneficiaryId);
-        entityManager.persist(loadedBeneficiary);
+        ClusterBeneficiary batchBeneficiary = ClusterBeneficiary.create(clusterId, beneficiaryId);
+        entityManager.persist(batchBeneficiary);
       } catch (EntityExistsException ex) {
       }
     }
+  }
+
+  /**
+   * Update the cluster entity associated with this batch of RifRecords
+   *
+   * @param entityManager to use
+   * @param clusterId of the batch to update
+   */
+  private static void updateCluster(EntityManager entityManager, long clusterId) {
+    Cluster cluster = entityManager.find(Cluster.class, clusterId);
+    cluster.setLastUpdated(Date.from(Instant.now()));
   }
 
   /** Computes and logs a count for all record types. */

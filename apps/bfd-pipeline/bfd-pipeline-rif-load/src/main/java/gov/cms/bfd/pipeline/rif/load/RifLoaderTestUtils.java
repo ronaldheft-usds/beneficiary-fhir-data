@@ -3,8 +3,15 @@ package gov.cms.bfd.pipeline.rif.load;
 import com.codahale.metrics.MetricRegistry;
 import com.justdavis.karl.misc.exceptions.BadCodeMonkeyException;
 import gov.cms.bfd.model.rif.Beneficiary;
-import gov.cms.bfd.model.rif.LoadedFile;
+import gov.cms.bfd.model.rif.Cluster;
+import gov.cms.bfd.model.rif.RifFile;
+import gov.cms.bfd.model.rif.RifFileType;
+import gov.cms.bfd.model.rif.RifFilesEvent;
+import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -50,6 +57,39 @@ public final class RifLoaderTestUtils {
   }
 
   /**
+   * Return a Files Event with a single dummy file
+   *
+   * @return a new RifFilesEvent
+   */
+  public static RifFilesEvent createDummyFilesEvent() {
+    RifFile dummyFile =
+        new RifFile() {
+
+          @Override
+          public InputStream open() {
+            return null;
+          }
+
+          @Override
+          public RifFileType getFileType() {
+            return RifFileType.BENEFICIARY;
+          }
+
+          @Override
+          public String getDisplayName() {
+            return "Dummy.txt";
+          }
+
+          @Override
+          public Charset getCharset() {
+            return StandardCharsets.UTF_8;
+          }
+        };
+
+    return new RifFilesEvent(Instant.now(), Arrays.asList(dummyFile));
+  }
+
+  /**
    * <strong>Serious Business:</strong> deletes all resources from the database server used in
    * tests.
    *
@@ -74,8 +114,8 @@ public final class RifLoaderTestUtils {
             if (t2.equals(Beneficiary.class)) return -1;
             if (t1.getSimpleName().endsWith("Line")) return -1;
             if (t2.getSimpleName().endsWith("Line")) return 1;
-            if (t1.equals(LoadedFile.class)) return 1;
-            if (t2.equals(LoadedFile.class)) return -1;
+            if (t1.equals(Cluster.class)) return 1;
+            if (t2.equals(Cluster.class)) return -1;
             return 0;
           };
       List<Class<?>> entityTypesInDeletionOrder =

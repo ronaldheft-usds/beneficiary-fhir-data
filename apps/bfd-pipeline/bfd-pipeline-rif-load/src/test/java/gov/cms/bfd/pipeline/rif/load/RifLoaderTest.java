@@ -2,7 +2,10 @@ package gov.cms.bfd.pipeline.rif.load;
 
 import gov.cms.bfd.model.rif.schema.DatabaseTestHelper;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
 import javax.crypto.SecretKeyFactory;
 import org.junit.Assert;
 import org.junit.Test;
@@ -46,5 +49,44 @@ public final class RifLoaderTest {
     Assert.assertEquals(
         "6357f16ebd305103cf9f2864c56435ad0de5e50f73631159772f4a4fcdfe39a5",
         RifLoader.computeHicnHash(options, secretKeyFactory, "987654321E"));
+  }
+
+  @Test
+  public void clusterFiles() {
+    RifFilesEvent rifFilesEvent = RifLoaderTestUtils.createDummyFilesEvent();
+    RifFileEvent rifFileEvent = rifFilesEvent.getFileEvents().get(0);
+
+    // Test an empty cluster
+    List<Cluster> emptyClusters = Arrays.asList();
+    Assert.assertTrue(
+        "Expected new cluster when none exist.",
+        RifLoader.shouldStartCluster(rifFileEvent, emptyClusters));
+
+    // Test a old cluster
+    Cluster oldCluster = Cluster.create();
+    oldCluster.setFirstUpdated(Date.from(Instant.now().minusSeconds(101 * 3600)));
+    oldCluster.setLastUpdated(Date.from(Instant.now().minusSeconds(100 * 3600)));
+    List<Cluster> oldClusters = Arrays.asList(oldCluster);
+    Assert.assertTrue(
+        "Expected new cluster when the current cluster is old.",
+        RifLoader.shouldStartCluster(rifFileEvent, oldClusters));
+
+    // Test a full cluster
+    Cluster fullCluster = Cluster.create();
+    fullCluster.setFirstUpdated(Date.from(Instant.now().minusSeconds(101 * 3600)));
+    fullCluster.setLastUpdated(Date.from(Instant.now()));
+    List<Cluster> fullClusters = Arrays.asList(fullCluster);
+    Assert.assertTrue(
+        "Expected new cluster when the current cluster spans a long time.",
+        RifLoader.shouldStartCluster(rifFileEvent, fullClusters));
+
+    // Test a young cluster
+    Cluster youngCluster = Cluster.create();
+    youngCluster.setFirstUpdated(Date.from(Instant.now().minusSeconds(1 * 3600)));
+    youngCluster.setLastUpdated(Date.from(Instant.now()));
+    List<Cluster> youngClusters = Arrays.asList(youngCluster);
+    Assert.assertFalse(
+        "Expected continue with current cluster when the current cluster is young.",
+        RifLoader.shouldStartCluster(rifFileEvent, youngClusters));
   }
 }

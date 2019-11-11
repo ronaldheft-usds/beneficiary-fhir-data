@@ -2,18 +2,18 @@ package gov.cms.bfd.model.rif;
 
 import java.io.Serializable;
 
-public class LoadedBeneficiaryId implements Serializable {
+public class ClusterBeneficiaryId implements Serializable {
   private static final long serialVersionUID = 1L;
 
-  private long fileId;
+  private long clusterId;
 
   private String beneficiaryId;
 
   // default constructor
-  public LoadedBeneficiaryId() {}
+  public ClusterBeneficiaryId() {}
 
-  public LoadedBeneficiaryId(long fileId, String beneficiaryId) {
-    this.fileId = fileId;
+  public ClusterBeneficiaryId(long clusterId, String beneficiaryId) {
+    this.clusterId = clusterId;
     this.beneficiaryId = beneficiaryId;
   }
 
@@ -27,7 +27,7 @@ public class LoadedBeneficiaryId implements Serializable {
     final int prime = 31;
     int result = 1;
     result = prime * result + ((beneficiaryId == null) ? 0 : beneficiaryId.hashCode());
-    result = prime * result + (int) (fileId ^ (fileId >>> 32));
+    result = prime * result + (int) (clusterId ^ (clusterId >>> 32));
     return result;
   }
 
@@ -41,11 +41,11 @@ public class LoadedBeneficiaryId implements Serializable {
     if (this == obj) return true;
     if (obj == null) return false;
     if (getClass() != obj.getClass()) return false;
-    LoadedBeneficiaryId other = (LoadedBeneficiaryId) obj;
+    ClusterBeneficiaryId other = (ClusterBeneficiaryId) obj;
     if (beneficiaryId == null) {
       if (other.beneficiaryId != null) return false;
     } else if (!beneficiaryId.equals(other.beneficiaryId)) return false;
-    if (fileId != other.fileId) return false;
+    if (clusterId != other.clusterId) return false;
     return true;
   }
 }
