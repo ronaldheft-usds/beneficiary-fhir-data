@@ -147,10 +147,9 @@ public final class CoverageResourceProvider implements IResourceProvider {
       coverages = new LinkedList<IBaseResource>();
     }
 
-    PagingArguments pagingArgs = new PagingArguments(requestDetails);
     Bundle bundle =
         TransformerUtils.createBundle(
-            pagingArgs,
+            requestDetails,
             lastUpdated,
             "/Coverage?",
             Coverage.SP_BENEFICIARY,

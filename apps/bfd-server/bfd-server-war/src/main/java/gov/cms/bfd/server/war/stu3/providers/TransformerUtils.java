@@ -3,6 +3,7 @@ package gov.cms.bfd.server.war.stu3.providers;
 import ca.uhn.fhir.model.api.TemporalPrecisionEnum;
 import ca.uhn.fhir.model.primitive.IdDt;
 import ca.uhn.fhir.rest.api.Constants;
+import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.DateRangeParam;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
@@ -2924,7 +2925,7 @@ public final class TransformerUtils {
   }
 
   /**
-   * @param pagingArgs a {@link PagingArguments} used to determine if paging is requested and the
+   * @param requestDetails a {@link RequestDetails} used to determine if paging is requested and the
    *     parameters for doing so
    * @param lastUpdated the {@link DateRangeParam} used as predicate for the search. Maybe null.
    * @param resourceType the {@link String} the resource being provided by the paging link
@@ -2936,13 +2937,14 @@ public final class TransformerUtils {
    *     {@link Patient}s, which may contain multiple matching resources, or may also be empty.
    */
   public static Bundle createBundle(
-      PagingArguments pagingArgs,
+      RequestDetails requestDetails,
       DateRangeParam lastUpdated,
       String resourceType,
       String identifier,
       String value,
       List<IBaseResource> resources) {
     Bundle bundle = new Bundle();
+    PagingArguments pagingArgs = new PagingArguments(requestDetails);
     if (pagingArgs.isPagingRequested()) {
       /*
        * FIXME: Due to a bug in HAPI-FHIR described here

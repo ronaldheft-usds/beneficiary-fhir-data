@@ -196,6 +196,20 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
     Set<ClaimType> types = parseTypeParam(type);
 
     List<IBaseResource> eobs = new ArrayList<IBaseResource>();
+
+    /*
+     * Optimize when the lastUpdated parameter is specified and result set is empty
+     */
+    if (lastUpdated != null && isResultSetEmpty(lastUpdated)) {
+      return TransformerUtils.createBundle(
+          requestDetails,
+          lastUpdated,
+          "/ExplanationOfBenefit?",
+          ExplanationOfBenefit.SP_PATIENT,
+          beneficiaryId,
+          eobs);
+    }
+
     /*
      * The way our JPA/SQL schema is setup, we have to run a separate search for
      * each claim type, then combine the results. It's not super efficient, but it's
@@ -242,16 +256,17 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
 
     eobs.sort(ExplanationOfBenefitResourceProvider::compareByClaimIdThenClaimType);
 
-    PagingArguments pagingArgs = new PagingArguments(requestDetails);
-    Bundle bundle =
-        TransformerUtils.createBundle(
-            pagingArgs,
-            lastUpdated,
-            "/ExplanationOfBenefit?",
-            ExplanationOfBenefit.SP_PATIENT,
-            beneficiaryId,
-            eobs);
-    return bundle;
+    return TransformerUtils.createBundle(
+        requestDetails,
+        lastUpdated,
+        "/ExplanationOfBenefit?",
+        ExplanationOfBenefit.SP_PATIENT,
+        beneficiaryId,
+        eobs);
+  }
+
+  private boolean isResultSetEmpty(DateRangeParam lastUpdatedParam) {
+    return false;
   }
 
   /*

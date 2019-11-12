@@ -192,10 +192,9 @@ public final class PatientResourceProvider implements IResourceProvider {
       patients = new LinkedList<>();
     }
 
-    PagingArguments pagingArgs = new PagingArguments(requestDetails);
     Bundle bundle =
         TransformerUtils.createBundle(
-            pagingArgs,
+            requestDetails,
             lastUpdated,
             "/Patient?",
             Patient.SP_RES_ID,
@@ -260,10 +259,9 @@ public final class PatientResourceProvider implements IResourceProvider {
       patients = new LinkedList<>();
     }
 
-    PagingArguments pagingArgs = new PagingArguments(requestDetails);
     Bundle bundle =
         TransformerUtils.createBundle(
-            pagingArgs,
+            requestDetails,
             lastUpdated,
             "/Patient?",
             Patient.SP_IDENTIFIER,
