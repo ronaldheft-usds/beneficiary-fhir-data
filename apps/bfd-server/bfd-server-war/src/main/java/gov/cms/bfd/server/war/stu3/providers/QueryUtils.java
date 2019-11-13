@@ -7,13 +7,9 @@ import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.Path;
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** As set of methods to help form JPA queries. */
 public class QueryUtils {
-  private static final Logger LOGGER = LoggerFactory.getLogger(QueryUtils.class);
-
   /**
    * Create a predicate for the lastUpdate field based on the passed range.
    *

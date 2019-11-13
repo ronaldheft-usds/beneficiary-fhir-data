@@ -101,8 +101,7 @@ public class ClusterFilterManager {
         BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), count);
 
     // Dev note: The number of beneficiaries in a cluster can be large (>1M). So we could be in this
-    // loop
-    // for a while. Using ScrollableResults to avoid loading all beneficiaries into memory at once.
+    // loop for a while. ScrollableResults allows us to add the beneficiaries in small batches.
     Session session = entityManager.unwrap(Session.class);
     try (ScrollableResults results =
         session

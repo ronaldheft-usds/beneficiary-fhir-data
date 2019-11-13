@@ -40,8 +40,6 @@ import org.hl7.fhir.dstu3.model.Bundle;
 import org.hl7.fhir.dstu3.model.ExplanationOfBenefit;
 import org.hl7.fhir.dstu3.model.IdType;
 import org.hl7.fhir.instance.model.api.IBaseResource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -56,9 +54,6 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
    * application.
    */
   private static final Pattern EOB_ID_PATTERN = Pattern.compile("(\\p{Alpha}+)-(\\p{Alnum}+)");
-
-  private static final Logger LOGGER =
-      LoggerFactory.getLogger(ExplanationOfBenefitResourceProvider.class);
 
   private EntityManager entityManager;
   private MetricRegistry metricRegistry;

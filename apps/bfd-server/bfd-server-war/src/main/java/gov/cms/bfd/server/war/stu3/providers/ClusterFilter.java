@@ -7,8 +7,7 @@ import java.util.Date;
 /**
  * Cluster filters are used to determine if a given beneficiary was updated in particular cluster.
  * Beneath the covers, they use BloomFilters (see <a
- * href="https://en.wikipedia.org/wiki/Bloom_filter">Bloom Filters</a>) which are very space
- * efficient.
+ * href="https://en.wikipedia.org/wiki/Bloom_filter">Bloom Filters</a>) which are space efficient.
  */
 public class ClusterFilter {
   private long clusterId;
