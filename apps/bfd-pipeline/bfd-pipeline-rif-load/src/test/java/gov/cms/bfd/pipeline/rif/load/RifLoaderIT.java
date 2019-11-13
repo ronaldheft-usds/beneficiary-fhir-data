@@ -8,7 +8,6 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory_;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
 import gov.cms.bfd.model.rif.Cluster;
-import gov.cms.bfd.model.rif.ClusterBeneficiary;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
 import gov.cms.bfd.model.rif.RifFilesEvent;
@@ -60,12 +59,8 @@ public final class RifLoaderIT {
     loadSample(StaticRifResourceGroup.SAMPLE_A);
     RifLoaderTestUtils.doTestDb(
         entityManager -> {
-          CriteriaBuilder builder = entityManager.getCriteriaBuilder();
-
           // Verify that Cluster field
-          CriteriaQuery<Cluster> filesCriteria = builder.createQuery(Cluster.class);
-          filesCriteria.select(filesCriteria.from(Cluster.class));
-          List<Cluster> clusters = entityManager.createQuery(filesCriteria).getResultList();
+          List<Cluster> clusters = RifLoaderTestUtils.findClusters(entityManager);
           Assert.assertEquals("Expected to have one cluster", 1, clusters.size());
           Cluster cluster = clusters.get(0);
           Assert.assertNotNull(cluster.getLastUpdated());
@@ -76,14 +71,42 @@ public final class RifLoaderIT {
           Assert.assertTrue(cluster.getFileCount() > 0);
 
           // Verify that ClusterBeneficaries table was loaded
-          CriteriaQuery<String> beneCriteria = builder.createQuery(String.class);
-          Root<ClusterBeneficiary> root = beneCriteria.from(ClusterBeneficiary.class);
-          beneCriteria
-              .select(root.get("beneficiaryId"))
-              .where(builder.equal(root.get("clusterId"), cluster.getClusterId()));
-          List<String> ids = entityManager.createQuery(beneCriteria).getResultList();
+          List<String> ids =
+              RifLoaderTestUtils.findClusterBeneficiaries(entityManager, cluster.getClusterId());
           Assert.assertTrue("Expected to have at least one beneficiary loaded", ids.size() > 0);
           Assert.assertEquals("Expected to match the sample-a beneficiary", "567834", ids.get(0));
+        });
+  }
+
+  @Test
+  public void updateCluster() {
+    loadSample(StaticRifResourceGroup.SAMPLE_A);
+    RifLoaderTestUtils.doTestDb(
+        entityManager -> {
+          // Verify that a cluster exsits
+          List<Cluster> beforeClusters = RifLoaderTestUtils.findClusters(entityManager);
+          Assert.assertEquals("Expected to have one cluster", 1, beforeClusters.size());
+          Cluster beforeCluster = beforeClusters.get(0);
+
+          entityManager.clear();
+          loadSample(StaticRifResourceGroup.SAMPLE_U);
+
+          // Verify that the cluster was updated
+          List<Cluster> afterClusters = RifLoaderTestUtils.findClusters(entityManager);
+          Assert.assertEquals("Expected to have one cluster", 1, afterClusters.size());
+          Cluster afterCluster = afterClusters.get(0);
+
+          Assert.assertEquals(
+              "Expected range to expand",
+              beforeCluster.getClusterId(),
+              afterCluster.getClusterId());
+          Assert.assertEquals(
+              "Expected first timestampe to be constant",
+              beforeCluster.getFirstUpdated(),
+              afterCluster.getFirstUpdated());
+          Assert.assertTrue(
+              "Expected range to expand",
+              beforeCluster.getLastUpdated().before(afterCluster.getLastUpdated()));
         });
   }
 

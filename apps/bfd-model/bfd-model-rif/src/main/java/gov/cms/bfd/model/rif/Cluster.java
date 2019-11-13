@@ -25,10 +25,10 @@ public class Cluster {
   @Column(name = "`fileCount`", nullable = false)
   private int fileCount;
 
-  @Column(name = "`firstUpdated`", nullable = true)
+  @Column(name = "`firstUpdated`", nullable = false)
   private Date firstUpdated;
 
-  @Column(name = "`lastUpdated`", nullable = true)
+  @Column(name = "`lastUpdated`", nullable = false)
   private Date lastUpdated;
 
   /**

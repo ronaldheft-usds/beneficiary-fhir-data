@@ -1461,10 +1461,11 @@ public final class ExplanationOfBenefitResourceProviderIT {
    * @throws FHIRException (indicates test failure)
    */
   @Test
-  public void searchEobWithLastUpdated() throws FHIRException {
+  public void searchEobWithLastUpdated() throws FHIRException, InterruptedException {
     List<Object> loadedRecords =
         ServerTestUtils.loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
     IGenericClient fhirClient = ServerTestUtils.createFhirClient();
+    Thread.sleep(3000);
 
     // Get beneficiary information
     Beneficiary beneficiary =

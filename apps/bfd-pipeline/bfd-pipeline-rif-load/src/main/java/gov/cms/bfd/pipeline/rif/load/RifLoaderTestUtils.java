@@ -52,8 +52,36 @@ public final class RifLoaderTestUtils {
       entityManager = entityManagerFactory.createEntityManager();
       consumer.accept(entityManager);
     } finally {
-      if (entityManager != null) entityManager.close();
+      if (entityManager != null && entityManager.isOpen()) entityManager.close();
     }
+  }
+
+  /**
+   * Get the list of clusters from the passed in db, latest first
+   *
+   * @param entityManager to use
+   * @return the list of clusters in the db
+   */
+  public static List<Cluster> findClusters(EntityManager entityManager) {
+    return entityManager
+        .createQuery("select c from Cluster c order by c.lastUpdated desc", Cluster.class)
+        .getResultList();
+  }
+
+  /**
+   * Get the list of beneficiaries for a cluster
+   *
+   * @param entityManager to use
+   * @param clusterId to use
+   * @return the list of clusters in the db
+   */
+  public static List<String> findClusterBeneficiaries(EntityManager entityManager, long clusterId) {
+    return entityManager
+        .createQuery(
+            "select b.beneficiaryId from ClusterBeneficiary b where b.clusterId = :clusterId",
+            String.class)
+        .setParameter("clusterId", clusterId)
+        .getResultList();
   }
 
   /**

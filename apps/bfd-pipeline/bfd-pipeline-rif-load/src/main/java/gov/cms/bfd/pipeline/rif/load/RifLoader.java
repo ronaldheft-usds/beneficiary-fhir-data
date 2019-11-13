@@ -369,6 +369,7 @@ public final class RifLoader implements AutoCloseable {
         postgresBatch.submit();
       }
     }
+    updateCluster(clusterId, errorHandler);
 
     LOGGER.info("Processed '{}'.", dataToLoad);
     timerDataSetFile.stop();
@@ -508,7 +509,6 @@ public final class RifLoader implements AutoCloseable {
 
         loadResults.add(new RifRecordLoadResult(rifRecordEvent, loadAction));
       }
-      updateCluster(entityManager, clusterId);
 
       entityManager.getTransaction().commit();
 
@@ -611,7 +611,7 @@ public final class RifLoader implements AutoCloseable {
         em.getTransaction().commit();
         return cluster.getClusterId();
       } finally {
-        if (em != null) {
+        if (em != null && em.isOpen()) {
           em.close();
         }
       }
@@ -681,9 +681,22 @@ public final class RifLoader implements AutoCloseable {
    * @param entityManager to use
    * @param clusterId of the batch to update
    */
-  private static void updateCluster(EntityManager entityManager, long clusterId) {
-    Cluster cluster = entityManager.find(Cluster.class, clusterId);
-    cluster.setLastUpdated(Date.from(Instant.now()));
+  private void updateCluster(long clusterId, Consumer<Throwable> errorHandler) {
+    try {
+      EntityManager em = entityManagerFactory.createEntityManager();
+      try {
+        em.getTransaction().begin();
+        Cluster cluster = em.find(Cluster.class, clusterId);
+        cluster.setLastUpdated(Date.from(Instant.now()));
+        em.getTransaction().commit();
+      } finally {
+        if (em != null && em.isOpen()) {
+          em.close();
+        }
+      }
+    } catch (Exception ex) {
+      errorHandler.accept(ex);
+    }
   }
 
   /** Computes and logs a count for all record types. */
