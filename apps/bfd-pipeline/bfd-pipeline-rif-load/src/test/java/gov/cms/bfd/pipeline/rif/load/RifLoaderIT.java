@@ -110,6 +110,27 @@ public final class RifLoaderIT {
         });
   }
 
+  @Ignore
+  @Test
+  public void buildSynteticCluster() {
+    Assume.assumeTrue(
+        String.format(
+            "Not enough memory for this test (%s bytes max). Run with '-Xmx5g' or more.",
+            Runtime.getRuntime().maxMemory()),
+        Runtime.getRuntime().maxMemory() >= 4500000000L);
+    loadSample(StaticRifResourceGroup.SYNTHETIC_DATA);
+    RifLoaderTestUtils.doTestDb(
+        entityManager -> {
+          // Verify that a cluster exsits
+          List<Cluster> clusters = RifLoaderTestUtils.findClusters(entityManager);
+          Assert.assertEquals("Expected to have one cluster", 1, clusters.size());
+          Cluster cluster = clusters.get(0);
+          List<String> benes =
+              RifLoaderTestUtils.findClusterBeneficiaries(entityManager, cluster.getClusterId());
+          Assert.assertTrue(benes.size() > 0);
+        });
+  }
+
   /**
    * Runs {@link gov.cms.bfd.pipeline.rif.load.RifLoader} against the {@link
    * StaticRifResourceGroup#SAMPLE_U} data.

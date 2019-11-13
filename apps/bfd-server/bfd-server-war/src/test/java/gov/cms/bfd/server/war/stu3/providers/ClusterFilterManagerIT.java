@@ -60,31 +60,29 @@ public final class ClusterFilterManagerIT {
           // Should have one filter
           List<ClusterFilter> sampleAFilters = filterManager.getFilters();
           Assert.assertEquals(1, sampleAFilters.size());
+          ClusterFilter aFilter = sampleAFilters.get(0);
 
           // Should have still have one filter after a refresh
           entityManager.clear();
           filterManager.refreshClusterFilters();
           List<ClusterFilter> sampleAFilters2 = filterManager.getFilters();
-          Assert.assertEquals(
-              sampleAFilters.get(0).getLastUpdated(), sampleAFilters2.get(0).getLastUpdated());
+          ClusterFilter a2Filter = sampleAFilters2.get(0);
+          Assert.assertEquals(aFilter.getLastUpdated(), a2Filter.getLastUpdated());
 
-          // Process another set of files to
+          // Process another set of files
+          pause(100);
           loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_U.getResources()));
           entityManager.clear(); // Need to flush the em's cache
           filterManager.refreshClusterFilters();
 
           // The cluster should be larger. Should have the a filter with a longer time span
           List<ClusterFilter> sampleAUFilters = filterManager.getFilters();
+          ClusterFilter auFilter = sampleAUFilters.get(0);
+          LOGGER.info("Sample A: {}, AU: {}", aFilter.getLastUpdated(), auFilter.getLastUpdated());
           Assert.assertEquals(1, sampleAUFilters.size());
-          Assert.assertEquals(
-              sampleAFilters.get(0).getClusterId(), sampleAUFilters.get(0).getClusterId());
-          Assert.assertEquals(
-              sampleAFilters.get(0).getFirstUpdated(), sampleAUFilters.get(0).getFirstUpdated());
-          Assert.assertTrue(
-              sampleAFilters
-                  .get(0)
-                  .getLastUpdated()
-                  .before(sampleAUFilters.get(0).getLastUpdated()));
+          Assert.assertEquals(aFilter.getClusterId(), auFilter.getClusterId());
+          Assert.assertEquals(aFilter.getFirstUpdated(), auFilter.getFirstUpdated());
+          Assert.assertTrue(aFilter.getLastUpdated().before(auFilter.getLastUpdated()));
         });
   }
 
@@ -126,7 +124,7 @@ public final class ClusterFilterManagerIT {
   }
 
   /** @param sampleResources the sample RIF resources to load */
-  public static void loadData(List<StaticRifResource> sampleResources) {
+  private static void loadData(List<StaticRifResource> sampleResources) {
     LoadAppOptions loadOptions = RifLoaderTestUtils.getLoadOptions();
     RifFilesEvent rifFilesEvent =
         new RifFilesEvent(
@@ -142,6 +140,19 @@ public final class ClusterFilterManagerIT {
     for (RifFileEvent rifFileEvent : rifFilesEvent.getFileEvents()) {
       RifFileRecords rifFileRecords = processor.produceRecords(rifFileEvent);
       loader.process(rifFileRecords, error -> {}, result -> {});
+    }
+  }
+
+  /**
+   * Pause execution to allow time to pass.
+   *
+   * @param millis to pause for
+   */
+  private static void pause(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException ex) {
+
     }
   }
 }
