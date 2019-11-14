@@ -110,6 +110,37 @@ public final class RifLoaderIT {
         });
   }
 
+  @Test
+  public void trimCluster() {
+    loadSample(StaticRifResourceGroup.SAMPLE_A);
+    RifLoaderTestUtils.doTestDb(
+        entityManager -> {
+          // Setup a cluster with an old date
+          entityManager.getTransaction().begin();
+          List<Cluster> clusters = RifLoaderTestUtils.findClusters(entityManager);
+          Cluster oldCluster = clusters.get(0);
+          long oldId = oldCluster.getClusterId();
+          oldCluster.setFirstUpdated(Date.from(Instant.now().minus(101, ChronoUnit.DAYS)));
+          oldCluster.setLastUpdated(Date.from(Instant.now().minus(100, ChronoUnit.DAYS)));
+          entityManager.getTransaction().commit();
+
+          // Load another set that will cause the old cluster to be trimmed
+          loadSample(StaticRifResourceGroup.SAMPLE_U);
+
+          // Verify that a new cluster was created and that the old cluster was trimmed.
+          List<Cluster> afterClusters = RifLoaderTestUtils.findClusters(entityManager);
+          Assert.assertEquals(
+              "Expected to have one cluster because the old cluster was trimmed",
+              1,
+              afterClusters.size());
+          Cluster afterCluster = afterClusters.get(0);
+          Assert.assertNotEquals(
+              "Expected the current cluster is not the old cluster",
+              oldId,
+              afterCluster.getClusterId());
+        });
+  }
+
   @Ignore
   @Test
   public void buildSynteticCluster() {
@@ -291,7 +322,7 @@ public final class RifLoaderIT {
           rifFileRecords,
           error -> {
             failureCount.incrementAndGet();
-            LOGGER.warn("Record(s) failed to load.", error);
+            LOGGER.error("Record(s) failed to load.", error);
           },
           result -> {
             loadCount.incrementAndGet();

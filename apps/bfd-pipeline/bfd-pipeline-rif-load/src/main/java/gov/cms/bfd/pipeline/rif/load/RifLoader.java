@@ -87,6 +87,8 @@ public final class RifLoader implements AutoCloseable {
    */
   private static final int RECORD_BATCH_SIZE = 100;
 
+  private static final int MAX_CLUSTER_AGE = 30; // Days
+
   private static final Logger LOGGER = LoggerFactory.getLogger(RifLoader.class);
   private static final Logger LOGGER_RECORD_COUNTS =
       LoggerFactory.getLogger(RifLoader.class.getName() + ".recordCounts");
@@ -612,6 +614,9 @@ public final class RifLoader implements AutoCloseable {
         return cluster.getClusterId();
       } finally {
         if (em != null && em.isOpen()) {
+          if (em.isJoinedToTransaction()) {
+            em.getTransaction().rollback();
+          }
           em.close();
         }
       }
@@ -656,7 +661,7 @@ public final class RifLoader implements AutoCloseable {
   }
 
   /**
-   * Update the ClusterBeneficiaries table
+   * Insert into the ClusterBeneficiaries table
    *
    * @param entityManager to use
    * @param clusterId to use for the row
@@ -685,12 +690,33 @@ public final class RifLoader implements AutoCloseable {
     try {
       EntityManager em = entityManagerFactory.createEntityManager();
       try {
+        // Change the passed in cluster
         em.getTransaction().begin();
         Cluster cluster = em.find(Cluster.class, clusterId);
         cluster.setLastUpdated(Date.from(Instant.now()));
         em.getTransaction().commit();
+
+        // Take this time to find old clusters and delete them
+        Date oldDate = Date.from(Instant.now().minus(MAX_CLUSTER_AGE, ChronoUnit.DAYS));
+        List<Cluster> oldClusters =
+            em.createQuery("select c from Cluster c where c.lastUpdated < :oldDate", Cluster.class)
+                .setParameter("oldDate", oldDate)
+                .getResultList();
+        for (Cluster clusterToDelete : oldClusters) {
+          em.getTransaction().begin();
+          em.createQuery("delete ClusterBeneficiary b where b.clusterId = :clusterId")
+              .setParameter("clusterId", clusterToDelete.getClusterId())
+              .executeUpdate();
+          em.createQuery("delete Cluster c where c.clusterId = :clusterId")
+              .setParameter("clusterId", clusterToDelete.getClusterId())
+              .executeUpdate();
+          em.getTransaction().commit();
+        }
       } finally {
         if (em != null && em.isOpen()) {
+          if (em.isJoinedToTransaction()) {
+            em.getTransaction().rollback();
+          }
           em.close();
         }
       }
