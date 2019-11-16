@@ -12,9 +12,9 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimCsvWriter;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
-import gov.cms.bfd.model.rif.Cluster;
-import gov.cms.bfd.model.rif.ClusterBeneficiary;
-import gov.cms.bfd.model.rif.ClusterBeneficiaryId;
+import gov.cms.bfd.model.rif.LoadedBeneficiary;
+import gov.cms.bfd.model.rif.LoadedBeneficiaryId;
+import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RecordAction;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
@@ -58,7 +58,7 @@ import javax.persistence.Entity;
 import javax.persistence.EntityExistsException;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
-import javax.persistence.LockModeType;
+import javax.persistence.EntityTransaction;
 import javax.persistence.Persistence;
 import javax.persistence.Table;
 import javax.persistence.criteria.CriteriaBuilder;
@@ -87,7 +87,7 @@ public final class RifLoader implements AutoCloseable {
    */
   private static final int RECORD_BATCH_SIZE = 100;
 
-  private static final int MAX_CLUSTER_AGE = 30; // Days
+  private static final int MAX_FILE_AGE = 30; // Days
 
   private static final Logger LOGGER = LoggerFactory.getLogger(RifLoader.class);
   private static final Logger LOGGER_RECORD_COUNTS =
@@ -306,8 +306,8 @@ public final class RifLoader implements AutoCloseable {
             });
 
     // Insert the LoadedFiles table
-    long clusterId = findOrCreateCluster(dataToLoad.getSourceEvent(), errorHandler);
-    if (clusterId < 0) return;
+    long fileId = insertLoadedFile(dataToLoad.getSourceEvent(), errorHandler);
+    if (fileId < 0) return;
 
     /*
      * Design history note: Initially, this function just returned a stream
@@ -334,7 +334,7 @@ public final class RifLoader implements AutoCloseable {
              * OutOfMemoryErrors.
              */
             processAsync(
-                loadExecutor, recordsBatch, clusterId, postgresBatch, resultHandler, errorHandler);
+                loadExecutor, recordsBatch, fileId, postgresBatch, resultHandler, errorHandler);
           };
 
       // Collect records into batches and submit each to batchProcessor.
@@ -371,7 +371,7 @@ public final class RifLoader implements AutoCloseable {
         postgresBatch.submit();
       }
     }
-    updateCluster(clusterId, errorHandler);
+    updateLoadedFile(fileId, errorHandler);
 
     LOGGER.info("Processed '{}'.", dataToLoad);
     timerDataSetFile.stop();
@@ -382,7 +382,7 @@ public final class RifLoader implements AutoCloseable {
   /**
    * @param loadExecutor the {@link BlockingThreadPoolExecutor} to use for asynchronous load tasks
    * @param recordsBatch the {@link RifRecordEvent}s to process
-   * @param clusterId the id from the {@Cluster} associated with this batch
+   * @param fileId the id from the {@LoadedFiled} associated with this batch
    * @param postgresBatch the {@link PostgreSqlCopyInserter} for the current set of {@link
    *     RifFilesEvent}s being processed
    * @param resultHandler the {@link Consumer} to notify when the batch completes successfully
@@ -391,15 +391,14 @@ public final class RifLoader implements AutoCloseable {
   private void processAsync(
       BlockingThreadPoolExecutor loadExecutor,
       List<RifRecordEvent<?>> recordsBatch,
-      long clusterId,
+      long fileId,
       PostgreSqlCopyInserter postgresBatch,
       Consumer<RifRecordLoadResult> resultHandler,
       Consumer<Throwable> errorHandler) {
     loadExecutor.submit(
         () -> {
           try {
-            List<RifRecordLoadResult> processResults =
-                process(recordsBatch, clusterId, postgresBatch);
+            List<RifRecordLoadResult> processResults = process(recordsBatch, fileId, postgresBatch);
             processResults.forEach(resultHandler::accept);
           } catch (Throwable e) {
             errorHandler.accept(e);
@@ -409,13 +408,13 @@ public final class RifLoader implements AutoCloseable {
 
   /**
    * @param recordsBatch the {@link RifRecordEvent}s to process
-   * @param clusterId the id from the {@Cluster} associated with this batch
+   * @param fileId the id from the {@LoadedFile} associated with this batch
    * @param postgresBatch the {@link PostgreSqlCopyInserter} for the current set of {@link
    *     RifFilesEvent}s being processed
    * @return the {@link RifRecordLoadResult}s that model the results of the operation
    */
   private List<RifRecordLoadResult> process(
-      List<RifRecordEvent<?>> recordsBatch, long clusterId, PostgreSqlCopyInserter postgresBatch) {
+      List<RifRecordEvent<?>> recordsBatch, long fileId, PostgreSqlCopyInserter postgresBatch) {
     RifFileEvent fileEvent = recordsBatch.get(0).getFileEvent();
     MetricRegistry fileEventMetrics = fileEvent.getEventMetrics();
 
@@ -445,11 +444,13 @@ public final class RifLoader implements AutoCloseable {
             .time();
 
     EntityManager entityManager = null;
+    EntityTransaction txn = null;
 
     // TODO: refactor the following to be less of an indented mess
     try {
       entityManager = entityManagerFactory.createEntityManager();
-      entityManager.getTransaction().begin();
+      txn = entityManager.getTransaction();
+      txn.begin();
       List<RifRecordLoadResult> loadResults = new ArrayList<>(recordsBatch.size());
       for (RifRecordEvent<?> rifRecordEvent : recordsBatch) {
         RecordAction recordAction = rifRecordEvent.getRecordAction();
@@ -458,7 +459,7 @@ public final class RifLoader implements AutoCloseable {
         LOGGER.trace("Loading '{}' record.", rifFileType);
 
         // Update the LoadedBeneficiaries table
-        updateClusterBeneficiaries(entityManager, clusterId, rifRecordEvent.getBeneficiaryId());
+        associateLoadedBeneficiaries(entityManager, fileId, rifRecordEvent.getBeneficiaryId());
 
         LoadStrategy strategy = selectStrategy(recordAction);
         LoadAction loadAction;
@@ -512,7 +513,7 @@ public final class RifLoader implements AutoCloseable {
         loadResults.add(new RifRecordLoadResult(rifRecordEvent, loadAction));
       }
 
-      entityManager.getTransaction().commit();
+      txn.commit();
 
       // Update the metrics now that things have been pushed.
       timerBatchSuccess.stop();
@@ -534,8 +535,7 @@ public final class RifLoader implements AutoCloseable {
        * ensure that the failing data is captured.
        */
       try {
-        if (entityManager != null && entityManager.getTransaction().isActive())
-          entityManager.getTransaction().rollback();
+        if (txn != null && txn.isActive()) txn.rollback();
       } catch (Throwable t) {
         timerBundleFailure.stop();
         fileEventMetrics
@@ -576,42 +576,21 @@ public final class RifLoader implements AutoCloseable {
   }
 
   /**
-   * Find or create the cluster for this rifFileEvent
+   * Insert a LoadedFile into the LoadedFiles table for this rifFileEvent
    *
    * @param rifFileEvent is the file this about to be processed
    * @param errorHandler is the place to call during errors
-   * @return the id of the current or new cluster
+   * @return the id of LoadedFile created
    */
-  private long findOrCreateCluster(RifFileEvent rifFileEvent, Consumer<Throwable> errorHandler) {
+  private long insertLoadedFile(RifFileEvent rifFileEvent, Consumer<Throwable> errorHandler) {
     try {
       EntityManager em = entityManagerFactory.createEntityManager();
       try {
         em.getTransaction().begin();
-
-        /*
-         * Developer's note: This get and set is done as one atomic transation.
-         * If there are multiple writers (ie. pipelines), then we want to serialize these
-         * inserts and updates.
-         */
-        List<Cluster> currentClusters =
-            em.createQuery("select c from Cluster c order by c.lastUpdated desc", Cluster.class)
-                .setLockMode(LockModeType.PESSIMISTIC_READ)
-                .setHint("javax.persistence.lock.timeout", 1000)
-                .setMaxResults(5)
-                .getResultList();
-
-        Cluster cluster = null;
-        if (shouldStartCluster(rifFileEvent, currentClusters)) {
-          cluster = Cluster.create();
-          em.persist(cluster);
-        } else {
-          cluster = currentClusters.get(0);
-          cluster.setLastUpdated(Date.from(Instant.now()));
-          cluster.setFileCount(cluster.getFileCount() + 1);
-        }
-
+        LoadedFile loadedFile = LoadedFile.from(rifFileEvent);
+        em.persist(loadedFile);
         em.getTransaction().commit();
-        return cluster.getClusterId();
+        return loadedFile.getFileId();
       } finally {
         if (em != null && em.isOpen()) {
           if (em.isJoinedToTransaction()) {
@@ -627,88 +606,59 @@ public final class RifLoader implements AutoCloseable {
   }
 
   /**
-   * Clustering logic for rifFileEvents
-   *
-   * @param rifFileEvent is the triggering event
-   * @param currentClusters the list of current clusters
-   * @return true if a new cluster should be started or false if the current cluster should be
-   *     continued
-   */
-  static boolean shouldStartCluster(RifFileEvent rifFileEvent, List<Cluster> currentClusters) {
-    /**
-     * Dev Note: Clusters represent spans of time and the beneficiaries that were updated in that
-     * time span. They are used to optimize EOB searches with lastUpdated specified which are
-     * typically done in by FIHR Bulk Exporters.
-     *
-     * <p>There are many possible features on which it is possible to cluster rifFileEvents. This
-     * one is only based on time to allow some variation in implementation by the CCW. This should
-     * work with today's weekly updates and possible increases in update frequency.
-     */
-
-    // If there are no other clusters
-    if (currentClusters.size() == 0) return true;
-
-    // If the last updated was recent
-    Cluster currentCluster = currentClusters.get(0);
-    Date deliniationTime = Date.from(Instant.now().minus(12, ChronoUnit.HOURS));
-    if (currentCluster.getLastUpdated().before(deliniationTime)) return true;
-
-    // If the cluster is too long
-    Date earliestFirstUpdated = Date.from(Instant.now().minus(96, ChronoUnit.HOURS));
-    if (currentCluster.getFirstUpdated().before(earliestFirstUpdated)) return true;
-
-    return false;
-  }
-
-  /**
-   * Insert into the ClusterBeneficiaries table
+   * Insert into the LoadedBeneficiaries table
    *
    * @param entityManager to use
-   * @param clusterId to use for the row
+   * @param fileId to use for the row
    * @param beneficiaryId to use for the row
    */
-  private static void updateClusterBeneficiaries(
-      EntityManager entityManager, long clusterId, String beneficiaryId) {
+  private static void associateLoadedBeneficiaries(
+      EntityManager entityManager, long fileId, String beneficiaryId) {
     if (Objects.isNull(
         entityManager.find(
-            ClusterBeneficiary.class, new ClusterBeneficiaryId(clusterId, beneficiaryId)))) {
+            LoadedBeneficiary.class, new LoadedBeneficiaryId(fileId, beneficiaryId)))) {
       try {
-        ClusterBeneficiary batchBeneficiary = ClusterBeneficiary.create(clusterId, beneficiaryId);
-        entityManager.persist(batchBeneficiary);
+        LoadedBeneficiary loadedBeneficiary = LoadedBeneficiary.create(fileId, beneficiaryId);
+        entityManager.persist(loadedBeneficiary);
       } catch (EntityExistsException ex) {
       }
     }
   }
 
   /**
-   * Update the cluster entity associated with this batch of RifRecords
+   * Update the LoadedFile entity associated with this batch of RifRecords
    *
    * @param entityManager to use
-   * @param clusterId of the batch to update
+   * @param loadedId of the LoadedFile to update
    */
-  private void updateCluster(long clusterId, Consumer<Throwable> errorHandler) {
+  private void updateLoadedFile(long loadedId, Consumer<Throwable> errorHandler) {
     try {
       EntityManager em = entityManagerFactory.createEntityManager();
       try {
-        // Change the passed in cluster
+        // Change the passed in loadedFile
         em.getTransaction().begin();
-        Cluster cluster = em.find(Cluster.class, clusterId);
-        cluster.setLastUpdated(Date.from(Instant.now()));
+        LoadedFile loadedFile = em.find(LoadedFile.class, loadedId);
+        if (loadedFile == null) throw new IllegalArgumentException();
+        loadedFile.setLastUpdated(Date.from(Instant.now()));
         em.getTransaction().commit();
+        LOGGER.info(
+            "Updating LoadedFile {} to lastUpdated:{}", loadedId, loadedFile.getLastUpdated());
 
-        // Take this time to find old clusters and delete them
-        Date oldDate = Date.from(Instant.now().minus(MAX_CLUSTER_AGE, ChronoUnit.DAYS));
-        List<Cluster> oldClusters =
-            em.createQuery("select c from Cluster c where c.lastUpdated < :oldDate", Cluster.class)
+        // Take this time to find old files and delete them
+        Date oldDate = Date.from(Instant.now().minus(MAX_FILE_AGE, ChronoUnit.DAYS));
+        List<LoadedFile> oldFiles =
+            em.createQuery(
+                    "select f from LoadedFile f where f.lastUpdated < :oldDate", LoadedFile.class)
                 .setParameter("oldDate", oldDate)
                 .getResultList();
-        for (Cluster clusterToDelete : oldClusters) {
+        for (LoadedFile fileToDelete : oldFiles) {
+          LOGGER.info("Deleting LoadedFile {}", fileToDelete.getFileId());
           em.getTransaction().begin();
-          em.createQuery("delete ClusterBeneficiary b where b.clusterId = :clusterId")
-              .setParameter("clusterId", clusterToDelete.getClusterId())
+          em.createQuery("delete LoadedBeneficiary b where b.fileId = :fileId")
+              .setParameter("fileId", fileToDelete.getFileId())
               .executeUpdate();
-          em.createQuery("delete Cluster c where c.clusterId = :clusterId")
-              .setParameter("clusterId", clusterToDelete.getClusterId())
+          em.createQuery("delete LoadedFile f where f.fileId = :fileId")
+              .setParameter("fileId", fileToDelete.getFileId())
               .executeUpdate();
           em.getTransaction().commit();
         }

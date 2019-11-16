@@ -58,7 +58,7 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
   private EntityManager entityManager;
   private MetricRegistry metricRegistry;
   private SamhsaMatcher samhsaMatcher;
-  private ClusterFilterManager clusterFilterManager;
+  private LoadedFilterManager loadedFilterManager;
 
   /** @param entityManager a JPA {@link EntityManager} connected to the application's database */
   @PersistenceContext
@@ -78,10 +78,10 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
     this.samhsaMatcher = samhsaMatcher;
   }
 
-  /** @param clusterFilterManager the {@link ClusterFilterManager} to use */
+  /** @param loadedFilterManager the {@link LoadedFilterManager} to use */
   @Inject
-  public void setClusterFilterManager(ClusterFilterManager clusterFilterManager) {
-    this.clusterFilterManager = clusterFilterManager;
+  public void setLoadedFilterManager(LoadedFilterManager loadedFilterManager) {
+    this.loadedFilterManager = loadedFilterManager;
   }
 
   /** @see ca.uhn.fhir.rest.server.IResourceProvider#getResourceType() */
@@ -202,7 +202,7 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
     /*
      * Optimize when the lastUpdated parameter is specified and result set is empty
      */
-    if (lastUpdated != null && isResultSetEmpty(beneficiaryId, lastUpdated)) {
+    if (lastUpdated != null && loadedFilterManager.isResultSetEmpty(beneficiaryId, lastUpdated)) {
       return TransformerUtils.createBundle(
           requestDetails,
           lastUpdated,

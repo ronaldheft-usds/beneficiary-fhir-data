@@ -3,10 +3,11 @@ package gov.cms.bfd.pipeline.rif.load;
 import com.codahale.metrics.MetricRegistry;
 import com.justdavis.karl.misc.exceptions.BadCodeMonkeyException;
 import gov.cms.bfd.model.rif.Beneficiary;
-import gov.cms.bfd.model.rif.Cluster;
+import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RifFile;
 import gov.cms.bfd.model.rif.RifFileType;
 import gov.cms.bfd.model.rif.RifFilesEvent;
+import gov.cms.bfd.model.rif.schema.DatabaseSchemaManager;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -39,48 +40,55 @@ public final class RifLoaderTestUtils {
   private static final Logger LOGGER = LoggerFactory.getLogger(RifLoaderTestUtils.class);
 
   /**
-   * A wrapper for the entity manager logic
+   * A wrapper for the entity manager logic and action. The consumer is called within a transaction
+   * to which is rolled back.
    *
-   * @param consumer to call with an entity manager
+   * @param consumer to call with an entity manager.
    */
-  public static void doTestDb(Consumer<EntityManager> consumer) {
-    LoadAppOptions options = RifLoaderTestUtils.getLoadOptions();
+  public static void doTestWithDb(Consumer<EntityManager> consumer) {
+    LoadAppOptions options = getLoadOptions();
+    DataSource jdbcDataSource = createDataSouce(options);
+    DatabaseSchemaManager.createOrUpdateSchema(jdbcDataSource);
     EntityManagerFactory entityManagerFactory =
-        RifLoaderTestUtils.createEntityManagerFactory(options);
+        RifLoader.createEntityManagerFactory(jdbcDataSource);
     EntityManager entityManager = null;
     try {
       entityManager = entityManagerFactory.createEntityManager();
       consumer.accept(entityManager);
     } finally {
-      if (entityManager != null && entityManager.isOpen()) entityManager.close();
+      if (entityManager != null && entityManager.isOpen()) {
+        entityManager.close();
+      }
     }
   }
 
   /**
-   * Get the list of clusters from the passed in db, latest first
+   * Get the list of loaded files from the passed in db, latest first
    *
    * @param entityManager to use
-   * @return the list of clusters in the db
+   * @return the list of loaded files in the db
    */
-  public static List<Cluster> findClusters(EntityManager entityManager) {
+  public static List<LoadedFile> findLoadedFiles(EntityManager entityManager) {
+    entityManager.clear();
     return entityManager
-        .createQuery("select c from Cluster c order by c.lastUpdated desc", Cluster.class)
+        .createQuery("select f from LoadedFile f order by f.lastUpdated desc", LoadedFile.class)
         .getResultList();
   }
 
   /**
-   * Get the list of beneficiaries for a cluster
+   * Get the list of beneficiaries from a single loaded file
    *
    * @param entityManager to use
-   * @param clusterId to use
-   * @return the list of clusters in the db
+   * @param fileId to use
+   * @return the list of beneficiaries
    */
-  public static List<String> findClusterBeneficiaries(EntityManager entityManager, long clusterId) {
+  public static List<String> findLoadedBeneficiaries(EntityManager entityManager, long fileId) {
+    entityManager.clear();
     return entityManager
         .createQuery(
-            "select b.beneficiaryId from ClusterBeneficiary b where b.clusterId = :clusterId",
+            "select b.beneficiaryId from LoadedBeneficiary b where b.fileId = :fileId",
             String.class)
-        .setParameter("clusterId", clusterId)
+        .setParameter("fileId", fileId)
         .getResultList();
   }
 
@@ -142,8 +150,8 @@ public final class RifLoaderTestUtils {
             if (t2.equals(Beneficiary.class)) return -1;
             if (t1.getSimpleName().endsWith("Line")) return -1;
             if (t2.getSimpleName().endsWith("Line")) return 1;
-            if (t1.equals(Cluster.class)) return 1;
-            if (t2.equals(Cluster.class)) return -1;
+            if (t1.equals(LoadedFile.class)) return 1;
+            if (t2.equals(LoadedFile.class)) return -1;
             return 0;
           };
       List<Class<?>> entityTypesInDeletionOrder =

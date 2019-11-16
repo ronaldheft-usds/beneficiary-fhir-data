@@ -7,7 +7,7 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.BeneficiaryHistory_;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
-import gov.cms.bfd.model.rif.Cluster;
+import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
 import gov.cms.bfd.model.rif.RifFilesEvent;
@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
+import javax.persistence.EntityTransaction;
 import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Root;
@@ -55,109 +56,110 @@ public final class RifLoaderIT {
   }
 
   @Test
-  public void loadCluster() {
-    loadSample(StaticRifResourceGroup.SAMPLE_A);
-    RifLoaderTestUtils.doTestDb(
+  public void loadFile() {
+    RifLoaderTestUtils.doTestWithDb(
         entityManager -> {
-          // Verify that Cluster field
-          List<Cluster> clusters = RifLoaderTestUtils.findClusters(entityManager);
-          Assert.assertEquals("Expected to have one cluster", 1, clusters.size());
-          Cluster cluster = clusters.get(0);
-          Assert.assertNotNull(cluster.getLastUpdated());
-          Assert.assertNotNull(cluster.getFirstUpdated());
+          // Verify that LoadedFile entity
+          loadSample(StaticRifResourceGroup.SAMPLE_A);
+          List<LoadedFile> loadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
+          Assert.assertTrue(
+              "Expected to have many loaded files in SAMPLE A", loadedFiles.size() > 1);
+          LoadedFile loadedFile = loadedFiles.get(0);
+          Assert.assertNotNull(loadedFile.getLastUpdated());
+          Assert.assertNotNull(loadedFile.getFirstUpdated());
           Assert.assertTrue(
               "Expected first updated is before last updated",
-              cluster.getFirstUpdated().compareTo(cluster.getLastUpdated()) <= 0);
-          Assert.assertTrue(cluster.getFileCount() > 0);
+              loadedFile.getFirstUpdated().compareTo(loadedFile.getLastUpdated()) <= 0);
 
-          // Verify that ClusterBeneficaries table was loaded
+          // Verify that LoadedBeneficaries table was loaded
           List<String> ids =
-              RifLoaderTestUtils.findClusterBeneficiaries(entityManager, cluster.getClusterId());
+              RifLoaderTestUtils.findLoadedBeneficiaries(entityManager, loadedFile.getFileId());
           Assert.assertTrue("Expected to have at least one beneficiary loaded", ids.size() > 0);
           Assert.assertEquals("Expected to match the sample-a beneficiary", "567834", ids.get(0));
         });
   }
 
   @Test
-  public void updateCluster() {
-    loadSample(StaticRifResourceGroup.SAMPLE_A);
-    RifLoaderTestUtils.doTestDb(
+  public void multipleFileLoads() {
+    RifLoaderTestUtils.doTestWithDb(
         entityManager -> {
-          // Verify that a cluster exsits
-          List<Cluster> beforeClusters = RifLoaderTestUtils.findClusters(entityManager);
-          Assert.assertEquals("Expected to have one cluster", 1, beforeClusters.size());
-          Cluster beforeCluster = beforeClusters.get(0);
+          // Verify that a loaded files exsits
+          loadSample(StaticRifResourceGroup.SAMPLE_A);
+          List<LoadedFile> beforeLoadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
+          Assert.assertTrue("Expected to have at least one file", beforeLoadedFiles.size() > 0);
+          LoadedFile beforeLoadedFile = beforeLoadedFiles.get(0);
+          LoadedFile beforeOldestFile = beforeLoadedFiles.get(beforeLoadedFiles.size() - 1);
 
-          entityManager.clear();
+          RifLoaderTestUtils.pauseMillis(10);
           loadSample(StaticRifResourceGroup.SAMPLE_U);
 
-          // Verify that the cluster was updated
-          List<Cluster> afterClusters = RifLoaderTestUtils.findClusters(entityManager);
-          Assert.assertEquals("Expected to have one cluster", 1, afterClusters.size());
-          Cluster afterCluster = afterClusters.get(0);
-
+          // Verify that the loaded list was updated properly
+          List<LoadedFile> afterLoadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
+          Assert.assertTrue(
+              "Expected to have more loaded files",
+              beforeLoadedFiles.size() < afterLoadedFiles.size());
+          LoadedFile afterLoadedFile = afterLoadedFiles.get(0);
+          LoadedFile afterOldestFile = afterLoadedFiles.get(afterLoadedFiles.size() - 1);
           Assert.assertEquals(
-              "Expected range to expand",
-              beforeCluster.getClusterId(),
-              afterCluster.getClusterId());
-          Assert.assertEquals(
-              "Expected first timestampe to be constant",
-              beforeCluster.getFirstUpdated(),
-              afterCluster.getFirstUpdated());
+              "Expected same oldest file",
+              beforeOldestFile.getFileId(),
+              afterOldestFile.getFileId());
           Assert.assertTrue(
               "Expected range to expand",
-              beforeCluster.getLastUpdated().before(afterCluster.getLastUpdated()));
-        });
-  }
-
-  @Test
-  public void trimCluster() {
-    loadSample(StaticRifResourceGroup.SAMPLE_A);
-    RifLoaderTestUtils.doTestDb(
-        entityManager -> {
-          // Setup a cluster with an old date
-          entityManager.getTransaction().begin();
-          List<Cluster> clusters = RifLoaderTestUtils.findClusters(entityManager);
-          Cluster oldCluster = clusters.get(0);
-          long oldId = oldCluster.getClusterId();
-          oldCluster.setFirstUpdated(Date.from(Instant.now().minus(101, ChronoUnit.DAYS)));
-          oldCluster.setLastUpdated(Date.from(Instant.now().minus(100, ChronoUnit.DAYS)));
-          entityManager.getTransaction().commit();
-
-          // Load another set that will cause the old cluster to be trimmed
-          loadSample(StaticRifResourceGroup.SAMPLE_U);
-
-          // Verify that a new cluster was created and that the old cluster was trimmed.
-          List<Cluster> afterClusters = RifLoaderTestUtils.findClusters(entityManager);
-          Assert.assertEquals(
-              "Expected to have one cluster because the old cluster was trimmed",
-              1,
-              afterClusters.size());
-          Cluster afterCluster = afterClusters.get(0);
-          Assert.assertNotEquals(
-              "Expected the current cluster is not the old cluster",
-              oldId,
-              afterCluster.getClusterId());
+              beforeLoadedFile.getLastUpdated().before(afterLoadedFile.getLastUpdated()));
         });
   }
 
   @Ignore
   @Test
-  public void buildSynteticCluster() {
+  public void trimLoadedFiles() {
+    RifLoaderTestUtils.doTestWithDb(
+        entityManager -> {
+          // Setup a loaded file with an old date
+          loadSample(StaticRifResourceGroup.SAMPLE_A);
+          List<LoadedFile> loadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
+          EntityTransaction txn = entityManager.getTransaction();
+          txn.begin();
+          LoadedFile oldFile = loadedFiles.get(loadedFiles.size() - 1);
+          oldFile.setFirstUpdated(Date.from(Instant.now().minus(101, ChronoUnit.DAYS)));
+          oldFile.setLastUpdated(Date.from(Instant.now().minus(100, ChronoUnit.DAYS)));
+          txn.commit();
+
+          // Look at the files now
+          List<LoadedFile> beforeFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
+          Date oldDate = Date.from(Instant.now().minus(99, ChronoUnit.DAYS));
+          Assert.assertTrue(
+              "Expect to have old files",
+              beforeFiles.stream().anyMatch(file -> file.getLastUpdated().before(oldDate)));
+
+          // Load another set that will cause the old file to be trimmed
+          loadSample(StaticRifResourceGroup.SAMPLE_U);
+
+          // Verify that old file was trimmed
+          List<LoadedFile> afterFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
+          Assert.assertFalse(
+              "Expect to not have old files",
+              afterFiles.stream().anyMatch(file -> file.getLastUpdated().before(oldDate)));
+        });
+  }
+
+  @Ignore
+  @Test
+  public void buildSynteticLoadedFiles() {
     Assume.assumeTrue(
         String.format(
             "Not enough memory for this test (%s bytes max). Run with '-Xmx5g' or more.",
             Runtime.getRuntime().maxMemory()),
         Runtime.getRuntime().maxMemory() >= 4500000000L);
     loadSample(StaticRifResourceGroup.SYNTHETIC_DATA);
-    RifLoaderTestUtils.doTestDb(
+    RifLoaderTestUtils.doTestWithDb(
         entityManager -> {
-          // Verify that a cluster exsits
-          List<Cluster> clusters = RifLoaderTestUtils.findClusters(entityManager);
-          Assert.assertEquals("Expected to have one cluster", 1, clusters.size());
-          Cluster cluster = clusters.get(0);
+          // Verify that a loaded files exsits
+          List<LoadedFile> loadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
+          Assert.assertTrue("Expected to have at least one file", loadedFiles.size() > 0);
+          LoadedFile file = loadedFiles.get(0);
           List<String> benes =
-              RifLoaderTestUtils.findClusterBeneficiaries(entityManager, cluster.getClusterId());
+              RifLoaderTestUtils.findLoadedBeneficiaries(entityManager, file.getFileId());
           Assert.assertTrue(benes.size() > 0);
         });
   }

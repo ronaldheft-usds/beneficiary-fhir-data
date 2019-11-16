@@ -7,39 +7,39 @@ import javax.persistence.IdClass;
 import javax.persistence.Table;
 
 @Entity
-@Table(name = "`ClusterBeneficiaries`")
-@IdClass(ClusterBeneficiaryId.class)
-public class ClusterBeneficiary {
-  @Column(name = "`clusterId`", nullable = false)
+@Table(name = "`LoadedBeneficiaries`")
+@IdClass(LoadedBeneficiaryId.class)
+public class LoadedBeneficiary {
+  @Column(name = "`fileId`", nullable = false)
   @Id
-  private long clusterId;
+  private long fileId;
 
   @Column(name = "`beneficiaryId`", nullable = false)
   @Id
   private String beneficiaryId;
 
   /**
-   * Create an GroupBeneficiary entity
+   * Create an LoadedBeneficiary entity
    *
-   * @param clusterId associated with the load
+   * @param fileId associated with the load
    * @param beneficiaryId associated with the load
    * @return a new entity
    */
-  public static ClusterBeneficiary create(long clusterId, String beneficiaryId) {
-    ClusterBeneficiary entity = new ClusterBeneficiary();
-    entity.setClusterId(clusterId);
+  public static LoadedBeneficiary create(long fileId, String beneficiaryId) {
+    LoadedBeneficiary entity = new LoadedBeneficiary();
+    entity.setFileId(fileId);
     entity.setBeneficiaryId(beneficiaryId);
     return entity;
   }
 
-  /** @return the clusterId */
-  public long getClusterId() {
-    return clusterId;
+  /** @return the fileId */
+  public long getFileId() {
+    return fileId;
   }
 
-  /** @param clusterId the GroupId to set */
-  public void setClusterId(long clusterId) {
-    this.clusterId = clusterId;
+  /** @param fileId the fileId to set */
+  public void setFileId(long fileId) {
+    this.fileId = fileId;
   }
 
   /** @return the beneficiaryId */

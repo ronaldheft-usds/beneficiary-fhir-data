@@ -11,19 +11,19 @@ import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 
 @Entity
-@Table(name = "`Clusters`")
-public class Cluster {
+@Table(name = "`LoadedFiles`")
+public class LoadedFile {
   @Id
-  @Column(name = "`clusterId`", nullable = false)
-  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "clusters_clusterId_seq")
+  @Column(name = "`fileId`", nullable = false)
+  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "loadedFiles_fileId_seq")
   @SequenceGenerator(
-      name = "clusters_clusterId_seq",
-      sequenceName = "clusters_clusterId_seq",
+      name = "loadedFiles_fileId_seq",
+      sequenceName = "loadedFiles_fileId_seq",
       allocationSize = 10)
-  private long clusterId;
+  private long fileId;
 
-  @Column(name = "`fileCount`", nullable = false)
-  private int fileCount;
+  @Column(name = "`rifType`", nullable = false)
+  private String rifType;
 
   @Column(name = "`firstUpdated`", nullable = false)
   private Date firstUpdated;
@@ -32,37 +32,37 @@ public class Cluster {
   private Date lastUpdated;
 
   /**
-   * Create an Batch entity
+   * Create a new LoadedFile from a RifFileEvent
    *
    * @return a new entity
    */
-  public static Cluster create() {
-    Cluster entity = new Cluster();
+  public static LoadedFile from(RifFileEvent fileEvent) {
+    LoadedFile entity = new LoadedFile();
     Date nowDate = Date.from(Instant.now());
-    entity.setFileCount(1);
     entity.setFirstUpdated(nowDate);
     entity.setLastUpdated(nowDate);
+    entity.setRifType(fileEvent.getFile().getFileType().toString());
     return entity;
   }
 
-  /** @return the clusterId */
-  public long getClusterId() {
-    return clusterId;
+  /** @return the fileId */
+  public long getFileId() {
+    return fileId;
   }
 
-  /** @param clusterId the clusterId to set */
-  public void setClusterId(long clusterId) {
-    this.clusterId = clusterId;
+  /** @param fileId the fileId to set */
+  public void setFileId(long fileId) {
+    this.fileId = fileId;
   }
 
-  /** @return the fileCount */
-  public int getFileCount() {
-    return fileCount;
+  /** @return the rifType */
+  public String getRifType() {
+    return rifType;
   }
 
-  /** @param fileCount the fileCount to set */
-  public void setFileCount(int fileCount) {
-    this.fileCount = fileCount;
+  /** @param rifType the rifType to set */
+  public void setRifType(String rifType) {
+    this.rifType = rifType;
   }
 
   /** @return the firstUpdated */

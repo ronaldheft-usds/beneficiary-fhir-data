@@ -12,15 +12,15 @@ import java.util.Date;
 import org.junit.Assert;
 import org.junit.Test;
 
-/** Tests for {@link gov.cms.bfd.server.war.stu3.providers.ClusterFilter}. */
-public final class ClusterFilterTest {
+/** Tests for {@link gov.cms.bfd.server.war.stu3.providers.LoadedFileFilter}. */
+public final class LoadedFilterTest {
 
   @Test
   public void testMatchesDateRange() {
     BloomFilter<String> emptyFilter =
         BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), 10);
-    ClusterFilter filter1 =
-        new ClusterFilter(
+    LoadedFileFilter filter1 =
+        new LoadedFileFilter(
             1,
             Date.from(Instant.now().minusSeconds(10)),
             Date.from(Instant.now().minusSeconds(5)),
@@ -95,8 +95,8 @@ public final class ClusterFilterTest {
     smallFilter.put("100");
     smallFilter.put("101");
 
-    ClusterFilter filter1 =
-        new ClusterFilter(
+    LoadedFileFilter filter1 =
+        new LoadedFileFilter(
             1,
             Date.from(Instant.now().minusSeconds(10)),
             Date.from(Instant.now().minusSeconds(5)),
