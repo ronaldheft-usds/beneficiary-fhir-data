@@ -31,6 +31,23 @@ public class LoadedFile {
   @Column(name = "`lastUpdated`", nullable = false)
   private Date lastUpdated;
 
+  public LoadedFile() {}
+
+  /**
+   * Create a LoadedFile
+   *
+   * @param fileId id
+   * @param rifType RIFFileType
+   * @param firstUpdated first updated date
+   * @param lastUpdated last updated date
+   */
+  public LoadedFile(long fileId, String rifType, Date firstUpdated, Date lastUpdated) {
+    this.fileId = fileId;
+    this.rifType = rifType;
+    this.firstUpdated = firstUpdated;
+    this.lastUpdated = lastUpdated;
+  }
+
   /**
    * Create a new LoadedFile from a RifFileEvent
    *

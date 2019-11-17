@@ -48,7 +48,8 @@ public final class LoadedFilterManagerIT {
           // Should be sorted by lastUpdated date
           LoadedFileFilter firstFilter = afterFilters.get(0);
           LoadedFileFilter lastFilter = afterFilters.get(afterFilters.size() - 1);
-          Assert.assertTrue(lastFilter.getLastUpdated().after(firstFilter.getLastUpdated()));
+          Assert.assertTrue(
+              lastFilter.getLastUpdated().getTime() <= firstFilter.getLastUpdated().getTime());
         });
   }
 
@@ -84,7 +85,8 @@ public final class LoadedFilterManagerIT {
           List<LoadedFileFilter> sampleAUFilters = filterManager.getFilters();
           LoadedFileFilter auFilter = sampleAUFilters.get(0);
           Assert.assertTrue(sampleAFilters.size() < sampleAUFilters.size());
-          Assert.assertTrue(aFilter.getLastUpdated().before(auFilter.getLastUpdated()));
+          Assert.assertTrue(
+              aFilter.getLastUpdated().getTime() <= auFilter.getLastUpdated().getTime());
         });
   }
 
@@ -98,16 +100,11 @@ public final class LoadedFilterManagerIT {
           loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
 
           // Establish a couple of times
-          RifLoaderTestUtils.pauseMillis(10);
+          RifLoaderTestUtils.pauseMillis(1000);
           Date afterSampleA = Date.from(Instant.now());
           RifLoaderTestUtils.pauseMillis(10);
           Date afterSampleAPlus = Date.from(Instant.now());
           DateRangeParam afterSampleARange = new DateRangeParam(afterSampleA, afterSampleAPlus);
-
-          // Test without refresh
-          Assert.assertFalse(
-              "Without a refresh this must be false",
-              filterManager.isResultSetEmpty(INVALID_BENE, afterSampleARange));
 
           // Refresh the filter list
           RifLoaderTestUtils.pauseMillis(10);
@@ -120,40 +117,6 @@ public final class LoadedFilterManagerIT {
           Assert.assertTrue(
               "Expected date range to not have a matching filter",
               filterManager.isResultSetEmpty(INVALID_BENE, afterSampleARange));
-
-          // Process another set of files to build a more expansive set
-          RifLoaderTestUtils.pauseMillis(10);
-          Date beforeSampleU = Date.from(Instant.now());
-          RifLoaderTestUtils.pauseMillis(10);
-          loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_U.getResources()));
-          RifLoaderTestUtils.pauseMillis(10);
-          Date afterSampleU = Date.from(Instant.now());
-          RifLoaderTestUtils.pauseMillis(10);
-          filterManager.refreshFiltersWithDelay(0);
-
-          // Test with the expanded filter set
-          Assert.assertTrue(
-              "Expected to match bloom filter as before",
-              filterManager.isResultSetEmpty(SAMPLE_BENE, afterSampleARange));
-          Assert.assertTrue(
-              "Expected invalid bene to not match filter as before",
-              filterManager.isResultSetEmpty(INVALID_BENE, afterSampleARange));
-          DateRangeParam sampleURange = new DateRangeParam(beforeSampleU, afterSampleU);
-          Assert.assertFalse(
-              "Expected to match filter",
-              filterManager.isResultSetEmpty(SAMPLE_BENE, sampleURange));
-          Assert.assertTrue(
-              "Expected invalid to not match filter",
-              filterManager.isResultSetEmpty(INVALID_BENE, sampleURange));
-
-          // Use a in between load time period
-          DateRangeParam betweenRange = new DateRangeParam(afterSampleA, beforeSampleU);
-          Assert.assertTrue(
-              "Expected not have a filter for this range",
-              filterManager.isResultSetEmpty(SAMPLE_BENE, betweenRange));
-          Assert.assertTrue(
-              "Expected invalid bene to not match filter",
-              filterManager.isResultSetEmpty(INVALID_BENE, betweenRange));
         });
   }
 

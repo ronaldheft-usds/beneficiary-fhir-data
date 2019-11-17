@@ -106,11 +106,13 @@ public final class RifLoaderIT {
               afterOldestFile.getFileId());
           Assert.assertTrue(
               "Expected range to expand",
-              beforeLoadedFile.getLastUpdated().before(afterLoadedFile.getLastUpdated()));
+              beforeLoadedFile
+                  .getLastUpdated()
+                  .toInstant()
+                  .isBefore(afterLoadedFile.getLastUpdated().toInstant()));
         });
   }
 
-  @Ignore
   @Test
   public void trimLoadedFiles() {
     RifLoaderTestUtils.doTestWithDb(

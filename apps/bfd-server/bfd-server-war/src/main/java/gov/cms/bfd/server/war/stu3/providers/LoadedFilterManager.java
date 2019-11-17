@@ -57,10 +57,11 @@ public class LoadedFilterManager {
     // immediately reject ranges after the refreshTime. As well as the intervals before the oldest
     // filter.
     Date upperBound = lastUpdatedRange.getUpperBoundAsInstant();
-    if (upperBound == null || upperBound.after(getRefreshTime())) return false;
+    if (upperBound == null || upperBound.getTime() > getRefreshTime().getTime()) return false;
     LoadedFileFilter oldestFilter = getFilters().get(getFilters().size() - 1);
     Date lowerBound = lastUpdatedRange.getLowerBoundAsInstant();
-    if (lowerBound == null || lowerBound.before(oldestFilter.getFirstUpdated())) return false;
+    if (lowerBound == null || lowerBound.getTime() < oldestFilter.getFirstUpdated().getTime())
+      return false;
 
     List<LoadedFileFilter> filters = getFilters();
     for (LoadedFileFilter filter : filters) {
@@ -122,9 +123,15 @@ public class LoadedFilterManager {
    *
    * @param loadedFiles to use
    * @param beneficiaries to use, same for all loaded files
+   * @param refreshTime to set
    */
-  public void refreshFiltersDirectly(List<LoadedFile> loadedFiles, List<String> beneficiaries) {
-    refreshTime = Date.from(Instant.now());
+  public void refreshFiltersDirectly(
+      List<LoadedFile> loadedFiles, List<String> beneficiaries, Date refreshTime) {
+    this.refreshTime = refreshTime;
+    loadedFiles.sort(
+        (a, b) -> {
+          return b.getLastUpdated().compareTo(a.getLastUpdated());
+        });
 
     // Update the filters
     for (LoadedFile loadedFile : loadedFiles) {
