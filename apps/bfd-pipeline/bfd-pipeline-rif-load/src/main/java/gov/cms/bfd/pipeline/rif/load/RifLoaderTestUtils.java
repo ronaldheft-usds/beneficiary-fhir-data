@@ -1,25 +1,23 @@
 package gov.cms.bfd.pipeline.rif.load;
 
-import com.codahale.metrics.MetricRegistry;
-import com.justdavis.karl.misc.exceptions.BadCodeMonkeyException;
-import gov.cms.bfd.model.rif.Beneficiary;
 import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RifFile;
 import gov.cms.bfd.model.rif.RifFileType;
 import gov.cms.bfd.model.rif.RifFilesEvent;
 import gov.cms.bfd.model.rif.schema.DatabaseSchemaManager;
+import gov.cms.bfd.model.rif.schema.DatabaseTestHelper;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
+import java.util.function.BiConsumer;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Contains utilities that are useful when running the {@link RifLoader}.
@@ -45,16 +43,17 @@ public final class RifLoaderTestUtils {
    *
    * @param consumer to call with an entity manager.
    */
-  public static void doTestWithDb(Consumer<EntityManager> consumer) {
-    LoadAppOptions options = getLoadOptions();
-    DataSource jdbcDataSource = createDataSouce(options);
+  public static void doTestWithDb(BiConsumer<DataSource, EntityManager> consumer) {
+    LoadAppOptions loadOptions =
+        RifLoaderTestUtils.getLoadOptions(DatabaseTestHelper.getTestDatabase());
+    DataSource jdbcDataSource = loadOptions.getDatabaseDataSource();
     DatabaseSchemaManager.createOrUpdateSchema(jdbcDataSource);
     EntityManagerFactory entityManagerFactory =
         RifLoader.createEntityManagerFactory(jdbcDataSource);
     EntityManager entityManager = null;
     try {
       entityManager = entityManagerFactory.createEntityManager();
-      consumer.accept(entityManager);
+      consumer.accept(jdbcDataSource, entityManager);
     } finally {
       if (entityManager != null && entityManager.isOpen()) {
         entityManager.close();
@@ -126,74 +125,6 @@ public final class RifLoaderTestUtils {
   }
 
   /**
-   * <strong>Serious Business:</strong> deletes all resources from the database server used in
-   * tests.
-   *
-   * @param options the {@link LoadAppOptions} specifying the DB to clean
-   */
-  @SuppressWarnings({"rawtypes", "unchecked"})
-  public static void cleanDatabaseServerViaDeletes(LoadAppOptions options) {
-    // Before disabling this check, please go and update your resume.
-    if (!DB_URL.contains("hsql"))
-      throw new BadCodeMonkeyException("Saving you from a career-changing event.");
-
-    EntityManagerFactory entityManagerFactory = createEntityManagerFactory(options);
-    EntityManager entityManager = null;
-    EntityTransaction transaction = null;
-    try {
-      entityManager = entityManagerFactory.createEntityManager();
-
-      // Determine the entity types to delete, and the order to do so in.
-      Comparator<Class<?>> entityDeletionSorter =
-          (t1, t2) -> {
-            if (t1.equals(Beneficiary.class)) return 1;
-            if (t2.equals(Beneficiary.class)) return -1;
-            if (t1.getSimpleName().endsWith("Line")) return -1;
-            if (t2.getSimpleName().endsWith("Line")) return 1;
-            if (t1.equals(LoadedFile.class)) return 1;
-            if (t2.equals(LoadedFile.class)) return -1;
-            return 0;
-          };
-      List<Class<?>> entityTypesInDeletionOrder =
-          entityManagerFactory.getMetamodel().getEntities().stream()
-              .map(t -> t.getJavaType())
-              .sorted(entityDeletionSorter)
-              .collect(Collectors.toList());
-
-      LOGGER.info("Deleting all resources...");
-      transaction = entityManager.getTransaction();
-      transaction.begin();
-      for (Class<?> entityClass : entityTypesInDeletionOrder) {
-        CriteriaBuilder builder = entityManager.getCriteriaBuilder();
-        CriteriaDelete query = builder.createCriteriaDelete(entityClass);
-        query.from(entityClass);
-        entityManager.createQuery(query).executeUpdate();
-      }
-      transaction.commit();
-      LOGGER.info("Deleted all resources.");
-    } finally {
-      if (transaction != null && transaction.isActive()) transaction.rollback();
-      if (entityManager != null) entityManager.close();
-    }
-  }
-
-  /**
-   * <strong>Serious Business:</strong> deletes all resources from the database server used in
-   * tests.
-   *
-   * @param options the {@link LoadAppOptions} specifying the DB to clean
-   */
-  public static void cleanDatabaseServer(LoadAppOptions options) {
-    // Before disabling this check, please go and update your resume.
-    if (!options.getDatabaseUrl().contains("hsql"))
-      throw new BadCodeMonkeyException("Saving you from a career-changing event.");
-
-    Flyway flyway = new Flyway();
-    flyway.setDataSource(RifLoader.createDataSource(options, new MetricRegistry()));
-    flyway.clean();
-  }
-
-  /**
    * @param dataSource a {@link DataSource} for the test DB to connect to
    * @return the {@link LoadAppOptions} that should be used in tests, which specifies how to connect
    *     to the database server that tests should be run against
@@ -218,5 +149,17 @@ public final class RifLoaderTestUtils {
 
     DataSource dataSource = options.getDatabaseDataSource();
     return RifLoader.createEntityManagerFactory(dataSource);
+  }
+
+  /**
+   * Pause of a number milliseconds.
+   *
+   * @param millis to sleap
+   */
+  public static void pauseMillis(long millis) {
+    try {
+      Thread.sleep(millis);
+    } catch (InterruptedException ex) {
+    }
   }
 }

@@ -1,5 +1,6 @@
 package gov.cms.bfd.pipeline.rif.load;
 
+import gov.cms.bfd.model.rif.schema.DatabaseTestHelper;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import javax.crypto.SecretKeyFactory;

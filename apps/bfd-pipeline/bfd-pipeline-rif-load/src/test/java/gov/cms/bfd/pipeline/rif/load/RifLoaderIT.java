@@ -32,8 +32,6 @@ import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.CriteriaQuery;
 import javax.persistence.criteria.Root;
 import javax.sql.DataSource;
-
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Ignore;
@@ -58,9 +56,9 @@ public final class RifLoaderIT {
   @Test
   public void loadFile() {
     RifLoaderTestUtils.doTestWithDb(
-        entityManager -> {
+        (dataSource, entityManager) -> {
           // Verify that LoadedFile entity
-          loadSample(StaticRifResourceGroup.SAMPLE_A);
+          loadSample(dataSource, StaticRifResourceGroup.SAMPLE_A);
           List<LoadedFile> loadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
           Assert.assertTrue(
               "Expected to have many loaded files in SAMPLE A", loadedFiles.size() > 1);
@@ -82,16 +80,16 @@ public final class RifLoaderIT {
   @Test
   public void multipleFileLoads() {
     RifLoaderTestUtils.doTestWithDb(
-        entityManager -> {
+        (dataSource, entityManager) -> {
           // Verify that a loaded files exsits
-          loadSample(StaticRifResourceGroup.SAMPLE_A);
+          loadSample(dataSource, StaticRifResourceGroup.SAMPLE_A);
           List<LoadedFile> beforeLoadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
           Assert.assertTrue("Expected to have at least one file", beforeLoadedFiles.size() > 0);
           LoadedFile beforeLoadedFile = beforeLoadedFiles.get(0);
           LoadedFile beforeOldestFile = beforeLoadedFiles.get(beforeLoadedFiles.size() - 1);
 
           RifLoaderTestUtils.pauseMillis(10);
-          loadSample(StaticRifResourceGroup.SAMPLE_U);
+          loadSample(dataSource, StaticRifResourceGroup.SAMPLE_U);
 
           // Verify that the loaded list was updated properly
           List<LoadedFile> afterLoadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
@@ -116,9 +114,9 @@ public final class RifLoaderIT {
   @Test
   public void trimLoadedFiles() {
     RifLoaderTestUtils.doTestWithDb(
-        entityManager -> {
+        (dataSource, entityManager) -> {
           // Setup a loaded file with an old date
-          loadSample(StaticRifResourceGroup.SAMPLE_A);
+          loadSample(dataSource, StaticRifResourceGroup.SAMPLE_A);
           List<LoadedFile> loadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
           EntityTransaction txn = entityManager.getTransaction();
           txn.begin();
@@ -135,7 +133,7 @@ public final class RifLoaderIT {
               beforeFiles.stream().anyMatch(file -> file.getLastUpdated().before(oldDate)));
 
           // Load another set that will cause the old file to be trimmed
-          loadSample(StaticRifResourceGroup.SAMPLE_U);
+          loadSample(dataSource, StaticRifResourceGroup.SAMPLE_U);
 
           // Verify that old file was trimmed
           List<LoadedFile> afterFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
@@ -153,9 +151,10 @@ public final class RifLoaderIT {
             "Not enough memory for this test (%s bytes max). Run with '-Xmx5g' or more.",
             Runtime.getRuntime().maxMemory()),
         Runtime.getRuntime().maxMemory() >= 4500000000L);
-    loadSample(StaticRifResourceGroup.SYNTHETIC_DATA);
+
     RifLoaderTestUtils.doTestWithDb(
-        entityManager -> {
+        (dataSource, entityManager) -> {
+          loadSample(dataSource, StaticRifResourceGroup.SYNTHETIC_DATA);
           // Verify that a loaded files exsits
           List<LoadedFile> loadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
           Assert.assertTrue("Expected to have at least one file", loadedFiles.size() > 0);
@@ -368,15 +367,6 @@ public final class RifLoaderIT {
           options, entityManagerFactory, rifFileRecordsCopy.getRecords().map(r -> r.getRecord()));
     }
     LOGGER.info("All records found in DB.");
-  }
-
-  /**
-   * Ensures that {@link gov.cms.bfd.pipeline.rif.load.RifLoaderTestUtils#cleanDatabaseServer} is
-   * called after each test case.
-   */
-  @After
-  public void cleanDatabaseServerAfterEachTestCase() {
-    RifLoaderTestUtils.cleanDatabaseServer(RifLoaderTestUtils.getLoadOptions());
   }
 
   /**

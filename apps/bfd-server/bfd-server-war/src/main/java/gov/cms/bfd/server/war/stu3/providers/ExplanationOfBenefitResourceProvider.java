@@ -267,27 +267,6 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
         eobs);
   }
 
-  /**
-   * Is the result set going to be empty for this bene and time period?
-   *
-   * @param beneficiaryId to test
-   * @param lastUpdatedParam to test
-   * @return true if the results set is empty. false if the result set may contain items.
-   */
-  private boolean isResultSetEmpty(String beneficiaryId, DateRangeParam lastUpdatedParam) {
-    boolean matchFound = false;
-    List<ClusterFilter> filters = clusterFilterManager.getFilters();
-    for (ClusterFilter filter : filters) {
-      if (filter.matchesDateRange(lastUpdatedParam)) {
-        matchFound = true;
-        if (filter.mightContain(beneficiaryId)) {
-          return false;
-        }
-      }
-    }
-    return matchFound;
-  }
-
   /*
    * @param eob1 an {@link ExplanationOfBenefit} to be compared
    *

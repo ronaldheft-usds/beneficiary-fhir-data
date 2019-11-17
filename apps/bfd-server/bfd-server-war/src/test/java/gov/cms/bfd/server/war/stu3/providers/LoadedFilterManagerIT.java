@@ -1,5 +1,6 @@
 package gov.cms.bfd.server.war.stu3.providers;
 
+import ca.uhn.fhir.rest.param.DateRangeParam;
 import com.codahale.metrics.MetricRegistry;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
@@ -15,6 +16,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.sql.DataSource;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -29,17 +31,17 @@ public final class LoadedFilterManagerIT {
   @Test
   public void refreshFilters() {
     RifLoaderTestUtils.doTestWithDb(
-        entityManager -> {
+        (dataSource, entityManager) -> {
           LoadedFilterManager filterManager = new LoadedFilterManager();
           filterManager.setEntityManager(entityManager);
-          loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
+          loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
 
           // Without a refresh, the manager should have an empty filter list
           List<LoadedFileFilter> beforeFilters = filterManager.getFilters();
           Assert.assertEquals(0, beforeFilters.size());
 
           // Refresh the filter list
-          filterManager.refreshClusterFilters();
+          filterManager.refreshFiltersWithDelay(0);
 
           // Should have many filters
           List<LoadedFileFilter> afterFilters = filterManager.getFilters();
@@ -53,51 +55,14 @@ public final class LoadedFilterManagerIT {
         });
   }
 
-  /** Test refreshFilters when updating */
-  @Test
-  public void refreshFiltersWithUpdates() {
-
-    RifLoaderTestUtils.doTestWithDb(
-        entityManager -> {
-          LoadedFilterManager filterManager = new LoadedFilterManager();
-          filterManager.setEntityManager(entityManager);
-          filterManager.refreshClusterFilters();
-
-          // Should have many filters
-          List<LoadedFileFilter> sampleAFilters = filterManager.getFilters();
-          Assert.assertTrue(sampleAFilters.size() > 1);
-          LoadedFileFilter aFilter = sampleAFilters.get(0);
-
-          // Should have the same filters
-          filterManager.refreshFiltersWithDelay(0);
-          List<LoadedFileFilter> sampleAFilters2 = filterManager.getFilters();
-          LoadedFileFilter a2Filter = sampleAFilters2.get(0);
-          Assert.assertEquals(sampleAFilters.size(), sampleAFilters2.size());
-          Assert.assertEquals(aFilter.getFileId(), a2Filter.getFileId());
-          Assert.assertEquals(aFilter.getLastUpdated(), a2Filter.getLastUpdated());
-
-          // Process another set of files
-          pause(100);
-          loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_U.getResources()));
-          filterManager.refreshFiltersWithDelay(0);
-
-          // The filter set should be larger. Should have the a filter with a longer time span
-          List<LoadedFileFilter> sampleAUFilters = filterManager.getFilters();
-          LoadedFileFilter auFilter = sampleAUFilters.get(0);
-          Assert.assertTrue(sampleAFilters.size() < sampleAUFilters.size());
-          Assert.assertTrue(
-              aFilter.getLastUpdated().getTime() <= auFilter.getLastUpdated().getTime());
-        });
-  }
-
   /** Test isResultSetEmpty with one and two filters */
   @Test
   public void isResultSetEmpty() {
     RifLoaderTestUtils.doTestWithDb(
-        entityManager -> {
+        (dataSource, entityManager) -> {
           LoadedFilterManager filterManager = new LoadedFilterManager();
           filterManager.setEntityManager(entityManager);
-          loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
+          loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
 
           // Establish a couple of times
           RifLoaderTestUtils.pauseMillis(1000);
@@ -121,8 +86,8 @@ public final class LoadedFilterManagerIT {
   }
 
   /** @param sampleResources the sample RIF resources to load */
-  private static void loadData(List<StaticRifResource> sampleResources) {
-    LoadAppOptions loadOptions = RifLoaderTestUtils.getLoadOptions();
+  private static void loadData(DataSource dataSource, List<StaticRifResource> sampleResources) {
+    LoadAppOptions loadOptions = RifLoaderTestUtils.getLoadOptions(dataSource);
     RifFilesEvent rifFilesEvent =
         new RifFilesEvent(
             Instant.now(),
@@ -137,19 +102,6 @@ public final class LoadedFilterManagerIT {
     for (RifFileEvent rifFileEvent : rifFilesEvent.getFileEvents()) {
       RifFileRecords rifFileRecords = processor.produceRecords(rifFileEvent);
       loader.process(rifFileRecords, error -> {}, result -> {});
-    }
-  }
-
-  /**
-   * Pause execution to allow time to pass.
-   *
-   * @param millis to pause for
-   */
-  private static void pause(long millis) {
-    try {
-      Thread.sleep(millis);
-    } catch (InterruptedException ex) {
-
     }
   }
 }

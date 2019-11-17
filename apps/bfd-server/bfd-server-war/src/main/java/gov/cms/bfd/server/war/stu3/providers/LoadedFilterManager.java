@@ -1,11 +1,14 @@
 package gov.cms.bfd.server.war.stu3.providers;
 
+import ca.uhn.fhir.rest.param.DateRangeParam;
 import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnels;
 import gov.cms.bfd.model.rif.LoadedFile;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
@@ -27,6 +30,7 @@ public class LoadedFilterManager {
 
   private List<LoadedFileFilter> filters = Arrays.asList();
   private EntityManager entityManager;
+  private Date refreshTime;
 
   /** @return the list of current filters. Newest first. */
   List<LoadedFileFilter> getFilters() {
