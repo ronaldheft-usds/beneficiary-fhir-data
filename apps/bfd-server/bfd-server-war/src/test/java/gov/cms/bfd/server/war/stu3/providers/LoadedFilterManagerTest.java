@@ -89,6 +89,17 @@ public final class LoadedFilterManagerTest {
     Assert.assertFalse(
         "Expected false with with unbounded time",
         filterManager.isResultSetEmpty(INVALID_BENE, beforeUnbounded));
+
+    // Test exclusive & inclusive time
+    DateRangeParam inclusive1 = new DateRangeParam(dates[5], dates[6]);
+    DateRangeParam exclusive1 =
+        new DateRangeParam().setLowerBoundExclusive(dates[5]).setUpperBoundExclusive(dates[6]);
+    Assert.assertFalse(
+        "Time period should match and result is not empty",
+        filterManager.isResultSetEmpty(SAMPLE_BENE, inclusive1));
+    Assert.assertTrue(
+        "Time period should not match and result is empty",
+        filterManager.isResultSetEmpty(SAMPLE_BENE, exclusive1));
   }
 
   @Test
@@ -145,5 +156,68 @@ public final class LoadedFilterManagerTest {
     Assert.assertTrue(
         "Invalid bene should mean empty result set",
         filterManager.isResultSetEmpty(INVALID_BENE, both));
+  }
+
+  @Test
+  public void testEmptyFile() {
+    // Create a few times
+    Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
+    Date[] dates = new Date[20];
+    for (int i = 0; i < dates.length; i++) {
+      dates[i] = Date.from(now.plusSeconds(i));
+    }
+
+    LoadedFilterManager filterManager = new LoadedFilterManager();
+
+    // Create empty file
+    LoadedFile emptyFile1 =
+        new LoadedFile(1, RifFileType.BENEFICIARY.toString(), dates[2], dates[2]);
+    DateRangeParam before1 = new DateRangeParam(dates[0], dates[1]);
+    DateRangeParam during1 = new DateRangeParam(dates[2], dates[3]);
+
+    filterManager.refreshFiltersDirectly(Arrays.asList(emptyFile1), Arrays.asList(), dates[4]);
+
+    // Test empty
+    Assert.assertFalse(
+        "Result should not be empty for this early period",
+        filterManager.isResultSetEmpty(INVALID_BENE, before1));
+    Assert.assertTrue(
+        "Invalid bene should mean empty result set",
+        filterManager.isResultSetEmpty(INVALID_BENE, during1));
+  }
+
+  @Test
+  public void testUpdateFile() {
+    // Create a few times
+    Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
+    Date[] dates = new Date[20];
+    for (int i = 0; i < dates.length; i++) {
+      dates[i] = Date.from(now.plusSeconds(i));
+    }
+
+    LoadedFilterManager filterManager = new LoadedFilterManager();
+
+    // refresh with an emptyFile
+    LoadedFile emptyFile1 =
+        new LoadedFile(1, RifFileType.BENEFICIARY.toString(), dates[2], dates[2]);
+    filterManager.refreshFiltersDirectly(Arrays.asList(emptyFile1), Arrays.asList(), dates[4]);
+
+    // Update the file and refresh again
+    LoadedFile file1 = new LoadedFile(1, RifFileType.BENEFICIARY.toString(), dates[2], dates[5]);
+    filterManager.refreshFiltersDirectly(
+        Arrays.asList(file1), Arrays.asList(SAMPLE_BENE), dates[8]);
+
+    // Test the new filter
+    Assert.assertEquals(1, filterManager.getFilters().size());
+    DateRangeParam during1 = new DateRangeParam(dates[2], dates[3]);
+    Assert.assertFalse(
+        "Expected valid bene and range to not be empty",
+        filterManager.isResultSetEmpty(SAMPLE_BENE, during1));
+    Assert.assertTrue(
+        "Expected invalid bene to be empty", filterManager.isResultSetEmpty(INVALID_BENE, during1));
+    DateRangeParam after1 = new DateRangeParam(dates[6], dates[7]);
+    Assert.assertTrue(
+        "Expected valid bene and range to not be empty",
+        filterManager.isResultSetEmpty(SAMPLE_BENE, after1));
   }
 }

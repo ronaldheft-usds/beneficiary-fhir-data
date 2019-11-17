@@ -1,5 +1,6 @@
 package gov.cms.bfd.server.war.stu3.providers;
 
+import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.DateRangeParam;
 import com.google.common.hash.BloomFilter;
 import java.util.Date;
@@ -40,11 +41,41 @@ public class LoadedFileFilter {
   public boolean matchesDateRange(DateRangeParam dateRangeParam) {
     if (dateRangeParam == null) return true;
 
-    Date upperRange = dateRangeParam.getUpperBoundAsInstant();
-    if (upperRange != null && upperRange.compareTo(getFirstUpdated()) <= 0) return false;
+    DateParam upperBound = dateRangeParam.getUpperBound();
+    if (upperBound != null) {
+      switch (upperBound.getPrefix()) {
+        case LESSTHAN:
+          if (upperBound.getValue().getTime() <= getFirstUpdated().getTime()) {
+            return false;
+          }
+          break;
+        case LESSTHAN_OR_EQUALS:
+          if (upperBound.getValue().getTime() < getFirstUpdated().getTime()) {
+            return false;
+          }
+          break;
+        default:
+          throw new IllegalArgumentException();
+      }
+    }
 
-    Date lowerRange = dateRangeParam.getLowerBoundAsInstant();
-    if (lowerRange != null && lowerRange.compareTo(getLastUpdated()) >= 0) return false;
+    DateParam lowerBound = dateRangeParam.getLowerBound();
+    if (lowerBound != null) {
+      switch (lowerBound.getPrefix()) {
+        case GREATERTHAN:
+          if (lowerBound.getValue().getTime() >= getLastUpdated().getTime()) {
+            return false;
+          }
+          break;
+        case GREATERTHAN_OR_EQUALS:
+          if (lowerBound.getValue().getTime() > getLastUpdated().getTime()) {
+            return false;
+          }
+          break;
+        default:
+          throw new IllegalArgumentException();
+      }
+    }
 
     return true;
   }
