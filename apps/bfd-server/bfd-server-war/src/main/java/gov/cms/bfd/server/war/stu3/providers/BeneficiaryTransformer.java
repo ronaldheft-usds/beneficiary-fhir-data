@@ -60,6 +60,9 @@ final class BeneficiaryTransformer {
         .setSystem(TransformerConstants.CODING_BBAPI_BENE_HICN_HASH)
         .setValue(beneficiary.getHicn());
 
+    // Add lastUpdated
+    TransformerUtils.setLastUpdated(patient, beneficiary.getLastUpdated());
+
     if (includeIdentifiersMode == IncludeIdentifiersMode.INCLUDE_HICNS_AND_MBIS) {
       Extension currentIdentifier =
           TransformerUtils.createIdentifierCurrencyExtension(CurrencyIdentifier.CURRENT);
@@ -87,6 +90,7 @@ final class BeneficiaryTransformer {
       for (BeneficiaryHistory beneHistory : beneficiary.getBeneficiaryHistories()) {
         Optional<String> hicnUnhashedHistoric = beneHistory.getHicnUnhashed();
         if (hicnUnhashedHistoric.isPresent()) unhashedHicns.add(hicnUnhashedHistoric.get());
+        TransformerUtils.updateMaxLastUpdated(patient, beneHistory.getLastUpdated());
       }
       List<String> unhashedHicnsNoDupes =
           unhashedHicns.stream().distinct().collect(Collectors.toList());
@@ -103,6 +107,7 @@ final class BeneficiaryTransformer {
           beneficiary.getMedicareBeneficiaryIdHistories()) {
         Optional<String> mbiUnhashedHistoric = mbiHistory.getMedicareBeneficiaryId();
         if (mbiUnhashedHistoric.isPresent()) unhashedMbis.add(mbiUnhashedHistoric.get());
+        TransformerUtils.updateMaxLastUpdated(patient, mbiHistory.getLastUpdated());
       }
       List<String> unhashedMbisNoDupes =
           unhashedMbis.stream().distinct().collect(Collectors.toList());
@@ -237,9 +242,6 @@ final class BeneficiaryTransformer {
               CcwCodebookVariable.DUAL_12,
               beneficiary.getMedicaidDualEligibilityDecCode()));
     }
-
-    // Add lastUpdated
-    TransformerUtils.setLastUpdated(patient, beneficiary.getLastUpdated());
 
     return patient;
   }

@@ -3153,4 +3153,21 @@ public final class TransformerUtils {
         .getMeta()
         .setLastUpdated(lastUpdated.orElse(TransformerConstants.DEFAULT_LAST_UPDATED));
   }
+
+  /**
+   * Sets the lastUpdated value in the resource if the passed in value is later than the current
+   * value.
+   *
+   * @param resource is the FHIR resource to update
+   * @param lastUpdated is the lastUpdated value from the entity
+   */
+  public static void updateMaxLastUpdated(IAnyResource resource, Optional<Date> lastUpdated) {
+    lastUpdated.ifPresent(
+        newDate -> {
+          Date currentDate = resource.getMeta().getLastUpdated();
+          if (currentDate != null && newDate.after(currentDate)) {
+            resource.getMeta().setLastUpdated(newDate);
+          }
+        });
+  }
 }
