@@ -55,7 +55,7 @@ public final class LoadedFilterManagerIT {
         });
   }
 
-  /** Test isResultSetEmpty with one and two filters */
+  /** Test isResultSetEmpty with one filter */
   @Test
   public void isResultSetEmpty() {
     RifLoaderTestUtils.doTestWithDb(
@@ -82,6 +82,52 @@ public final class LoadedFilterManagerIT {
           Assert.assertTrue(
               "Expected date range to not have a matching filter",
               filterManager.isResultSetEmpty(INVALID_BENE, afterSampleARange));
+        });
+  }
+
+  /** Test isResultSetEmpty with multiple refreshes */
+  @Test
+  public void testWithMultipleRefreshes() {
+    RifLoaderTestUtils.doTestWithDb(
+        (dataSource, entityManager) -> {
+          LoadedFilterManager filterManager = new LoadedFilterManager();
+          filterManager.setEntityManager(entityManager);
+          loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
+
+          // Establish a couple of times
+          RifLoaderTestUtils.pauseMillis(1000);
+          Date afterSampleA = Date.from(Instant.now());
+          RifLoaderTestUtils.pauseMillis(10);
+          Date afterSampleAPlus = Date.from(Instant.now());
+          DateRangeParam afterSampleARange = new DateRangeParam(afterSampleA, afterSampleAPlus);
+
+          // Refresh the filter list
+          RifLoaderTestUtils.pauseMillis(10);
+          filterManager.refreshFiltersWithDelay(0);
+
+          // Test after refresh
+          Assert.assertTrue(
+              "Expected date range to not have a matching filter",
+              filterManager.isResultSetEmpty(SAMPLE_BENE, afterSampleARange));
+          Assert.assertTrue(
+              "Expected date range to not have a matching filter",
+              filterManager.isResultSetEmpty(INVALID_BENE, afterSampleARange));
+
+          loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_U.getResources()));
+
+          // Load again
+          RifLoaderTestUtils.pauseMillis(1000);
+          Date afterSampleU = Date.from(Instant.now());
+          DateRangeParam aroundSampleU = new DateRangeParam(afterSampleA, afterSampleU);
+          filterManager.refreshFiltersWithDelay(0);
+
+          // Test after refresh
+          Assert.assertFalse(
+              "Expected date range to not have a matching filter",
+              filterManager.isResultSetEmpty(SAMPLE_BENE, aroundSampleU));
+          Assert.assertTrue(
+              "Expected date range to not have a matching filter",
+              filterManager.isResultSetEmpty(INVALID_BENE, aroundSampleU));
         });
   }
 

@@ -54,7 +54,7 @@ public final class RifLoaderIT {
   }
 
   @Test
-  public void loadFile() {
+  public void loadBeneficiaries() {
     RifLoaderTestUtils.doTestWithDb(
         (dataSource, entityManager) -> {
           // Verify that LoadedFile entity

@@ -44,9 +44,7 @@ public final class RifLoaderTestUtils {
    * @param consumer to call with an entity manager.
    */
   public static void doTestWithDb(BiConsumer<DataSource, EntityManager> consumer) {
-    LoadAppOptions loadOptions =
-        RifLoaderTestUtils.getLoadOptions(DatabaseTestHelper.getTestDatabase());
-    DataSource jdbcDataSource = loadOptions.getDatabaseDataSource();
+    DataSource jdbcDataSource = DatabaseTestHelper.getTestDatabaseAfterClean();
     DatabaseSchemaManager.createOrUpdateSchema(jdbcDataSource);
     EntityManagerFactory entityManagerFactory =
         RifLoader.createEntityManagerFactory(jdbcDataSource);

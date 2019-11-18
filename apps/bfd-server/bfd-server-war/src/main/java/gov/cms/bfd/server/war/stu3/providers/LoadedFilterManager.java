@@ -12,10 +12,10 @@ import java.util.Date;
 import java.util.List;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
-import org.hibernate.CacheMode;
 import org.hibernate.ScrollMode;
 import org.hibernate.ScrollableResults;
 import org.hibernate.Session;
+import org.hibernate.StatelessSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -73,6 +73,9 @@ public class LoadedFilterManager {
         if (filter.mightContain(beneficiaryId)) {
           return false;
         }
+      } else if (filter.getLastUpdated().getTime() < lowerBound.getTime()) {
+        // filters are sorted in descending by lastUpdated time, so we can exit early from this loop
+        return true;
       }
     }
     return true;
@@ -192,38 +195,49 @@ public class LoadedFilterManager {
         beneCount);
     BloomFilter<String> bloomFilter =
         BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), beneCount);
-
-    /**
-     * Dev note: The number of beneficiaries in a loaded file can be large (>1M). So we could be in
-     * this loop for a while. Hibernate's ScrollableResults allows us to add the beneficiaries in
-     * small batches. JPA 2.2 has a similar stream feature, but we are not using this package.
-     */
-    Session session = entityManager.unwrap(Session.class);
-    try (ScrollableResults results =
-        session
-            .createQuery("select b.beneficiaryId from LoadedBeneficiary b where b.fileId = :fileId")
-            .setParameter("fileId", loadedFile.getFileId())
-            .setCacheMode(CacheMode.IGNORE)
-            .setFetchSize(FETCH_SIZE)
-            .scroll(ScrollMode.FORWARD_ONLY)) {
-      long putCount = 0;
-      while (results.next()) {
-        String beneficiaryId = results.getText(0);
-        bloomFilter.put(beneficiaryId);
-        if (++putCount % FETCH_SIZE == 0) {
-          // Periodically release memory
-          entityManager.flush();
-          entityManager.clear();
-        }
-      }
-    }
-
+    fillBloomFilter(entityManager, loadedFile.getFileId(), bloomFilter);
     LOGGER.info("Finished building filter for file {}", loadedFile.getFileId());
     return new LoadedFileFilter(
         loadedFile.getFileId(),
         loadedFile.getFirstUpdated(),
         loadedFile.getLastUpdated(),
         bloomFilter);
+  }
+
+  /**
+   * Fill the bloom filter with beneficiaries associated with fileId
+   *
+   * @param entityManager to use
+   * @param fileId to fetch
+   * @param bloomFilter to fill
+   */
+  private void fillBloomFilter(
+      EntityManager entityManager, long fileId, BloomFilter<String> bloomFilter) {
+    /**
+     * Dev note: The number of beneficiaries in a loaded file can be large (>1M). So we could be in
+     * this loop for a while. Hibernate's ScrollableResults allows us to add the beneficiaries in
+     * small batches. JPA 2.2 has a similar stream feature, but we are not using this package.
+     * StatelessSession doesn't create level 1 or 2 cache objects.
+     *
+     * <p>See
+     * https://docs.jboss.org/hibernate/core/3.3/reference/en-US/html/batch.html#batch-statelesssession.
+     */
+    StatelessSession session =
+        entityManager.unwrap(Session.class).getSessionFactory().openStatelessSession();
+    try (ScrollableResults results =
+        session
+            .createQuery("select b.beneficiaryId from LoadedBeneficiary b where b.fileId = :fileId")
+            .setParameter("fileId", fileId)
+            .setReadOnly(true)
+            .setCacheable(false)
+            .setFetchSize(FETCH_SIZE)
+            .scroll(ScrollMode.FORWARD_ONLY)) {
+      while (results.next()) {
+        String beneficiaryId = results.getText(0);
+        bloomFilter.put(beneficiaryId);
+      }
+    }
+    session.close();
   }
 
   /**

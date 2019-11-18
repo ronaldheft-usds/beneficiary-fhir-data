@@ -38,20 +38,23 @@ alter table "SNFClaims" add column lastUpdated timestamp with time zone;
 
 -- One row for each RIF file loaded. The timestamps represent start and end time of processing the file. 
 create table "LoadedFiles" (
-  "fileId" bigint primary key,					        -- Internal db key
-  "rifType" varchar(48) not null,							  -- The RifFileType 
-  "firstUpdated" timestamp with time zone,		  -- Timestamp from the pipeline process	
-  "lastUpdated" timestamp with time zone			  -- Timestamp from the pipeline process
+  "fileId" bigint primary key,					        
+  "rifType" varchar(48) not null,							  
+  "firstUpdated" timestamp with time zone,		  	
+  "lastUpdated" timestamp with time zone			  
 )
+${logic.tablespaces-escape} tablespace "loadedfiles_ts"
+;
 
 create sequence loadedFiles_fileId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
 
 -- One row for each beneficiary updated by a RIF file
 create table "LoadedBeneficiaries" (
-  "fileId" bigint not null,								      -- One set per RifFile
-  "beneficiaryId" varchar(15) not null,					-- The beneficiaries in the rif file
+  "fileId" bigint not null,								      
+  "beneficiaryId" varchar(15) not null,				
   primary key ("fileId", "beneficiaryId")
 )
+${logic.tablespaces-escape} tablespace "loadedbeneficiaries_ts"
 ;
 
 alter table "LoadedBeneficiaries" 				
