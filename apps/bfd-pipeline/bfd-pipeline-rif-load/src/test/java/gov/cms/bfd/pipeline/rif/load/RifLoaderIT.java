@@ -8,6 +8,7 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory_;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
 import gov.cms.bfd.model.rif.LoadedFile;
+import gov.cms.bfd.model.rif.LoadedFileBuilder;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
 import gov.cms.bfd.model.rif.RifFilesEvent;
@@ -19,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -69,9 +71,8 @@ public final class RifLoaderIT {
               "Expected first updated is before last updated",
               loadedFile.getFirstUpdated().compareTo(loadedFile.getLastUpdated()) <= 0);
 
-          // Verify that LoadedBeneficaries table was loaded
-          List<String> ids =
-              RifLoaderTestUtils.findLoadedBeneficiaries(entityManager, loadedFile.getFileId());
+          // Verify that beneficiaries table was loaded
+          List<String> ids = loadBeneficiaries(loadedFile);
           Assert.assertTrue("Expected to have at least one beneficiary loaded", ids.size() > 0);
           Assert.assertEquals("Expected to match the sample-a beneficiary", "567834", ids.get(0));
         });
@@ -100,8 +101,8 @@ public final class RifLoaderIT {
           LoadedFile afterOldestFile = afterLoadedFiles.get(afterLoadedFiles.size() - 1);
           Assert.assertEquals(
               "Expected same oldest file",
-              beforeOldestFile.getFileId(),
-              afterOldestFile.getFileId());
+              beforeOldestFile.getLoadedFileId(),
+              afterOldestFile.getLoadedFileId());
           Assert.assertTrue(
               "Expected range to expand",
               beforeLoadedFile
@@ -159,8 +160,7 @@ public final class RifLoaderIT {
           List<LoadedFile> loadedFiles = RifLoaderTestUtils.findLoadedFiles(entityManager);
           Assert.assertTrue("Expected to have at least one file", loadedFiles.size() > 0);
           LoadedFile file = loadedFiles.get(0);
-          List<String> benes =
-              RifLoaderTestUtils.findLoadedBeneficiaries(entityManager, file.getFileId());
+          List<String> benes = loadBeneficiaries(file);
           Assert.assertTrue(benes.size() > 0);
         });
   }
@@ -270,11 +270,11 @@ public final class RifLoaderIT {
   @Ignore
   @Test
   public void loadSyntheticData() {
-    Assume.assumeTrue(
-        String.format(
-            "Not enough memory for this test (%s bytes max). Run with '-Xmx5g' or more.",
-            Runtime.getRuntime().maxMemory()),
-        Runtime.getRuntime().maxMemory() >= 4500000000L);
+    /*Assume.assumeTrue(
+    String.format(
+        "Not enough memory for this test (%s bytes max). Run with '-Xmx5g' or more.",
+        Runtime.getRuntime().maxMemory()),
+    Runtime.getRuntime().maxMemory() >= 4500000000L); */
     DataSource dataSource = DatabaseTestHelper.getTestDatabaseAfterClean();
     loadSample(dataSource, StaticRifResourceGroup.SYNTHETIC_DATA);
   }
@@ -303,6 +303,7 @@ public final class RifLoaderIT {
     // Generate the sample RIF data to feed through the pipeline.
     List<StaticRifResource> sampleResources =
         Arrays.stream(sampleGroup.getResources()).collect(Collectors.toList());
+    LOGGER.info("Loading RIF file from {}...", sampleResources.get(0).getResourceUrl().toString());
 
     RifFilesEvent rifFilesEvent =
         new RifFilesEvent(
@@ -313,27 +314,27 @@ public final class RifLoaderIT {
     MetricRegistry appMetrics = new MetricRegistry();
     RifFilesProcessor processor = new RifFilesProcessor();
     LoadAppOptions options = RifLoaderTestUtils.getLoadOptions(dataSource);
-    RifLoader loader = new RifLoader(appMetrics, options);
-
-    // Link up the pipeline and run it.
-    LOGGER.info("Loading RIF records...");
     AtomicInteger failureCount = new AtomicInteger(0);
     AtomicInteger loadCount = new AtomicInteger(0);
-    for (RifFileEvent rifFileEvent : rifFilesEvent.getFileEvents()) {
-      RifFileRecords rifFileRecords = processor.produceRecords(rifFileEvent);
-      loader.process(
-          rifFileRecords,
-          error -> {
-            failureCount.incrementAndGet();
-            LOGGER.error("Record(s) failed to load.", error);
-          },
-          result -> {
-            loadCount.incrementAndGet();
-          });
-      Slf4jReporter.forRegistry(rifFileEvent.getEventMetrics()).outputTo(LOGGER).build().report();
+    try (RifLoader loader = new RifLoader(appMetrics, options)) {
+      // Link up the pipeline and run it.
+      LOGGER.info("Loading RIF records...");
+      for (RifFileEvent rifFileEvent : rifFilesEvent.getFileEvents()) {
+        RifFileRecords rifFileRecords = processor.produceRecords(rifFileEvent);
+        loader.process(
+            rifFileRecords,
+            error -> {
+              failureCount.incrementAndGet();
+              LOGGER.error("Record(s) failed to load.", error);
+            },
+            result -> {
+              loadCount.incrementAndGet();
+            });
+        Slf4jReporter.forRegistry(rifFileEvent.getEventMetrics()).outputTo(LOGGER).build().report();
+      }
+      LOGGER.info("Loaded RIF records: '{}'.", loadCount.get());
+      Slf4jReporter.forRegistry(appMetrics).outputTo(LOGGER).build().report();
     }
-    LOGGER.info("Loaded RIF records: '{}'.", loadCount.get());
-    Slf4jReporter.forRegistry(appMetrics).outputTo(LOGGER).build().report();
 
     // Verify that the expected number of records were run successfully.
     Assert.assertEquals(0, failureCount.get());
@@ -367,6 +368,15 @@ public final class RifLoaderIT {
           options, entityManagerFactory, rifFileRecordsCopy.getRecords().map(r -> r.getRecord()));
     }
     LOGGER.info("All records found in DB.");
+  }
+
+  private ArrayList<String> loadBeneficiaries(LoadedFile file) {
+    try {
+      return LoadedFileBuilder.deserializeBeneficiaries(file.getFilterBytes());
+    } catch (Exception ex) {
+      Assert.fail("Deserialize of loaded beneficiaries failed");
+      return null;
+    }
   }
 
   /**

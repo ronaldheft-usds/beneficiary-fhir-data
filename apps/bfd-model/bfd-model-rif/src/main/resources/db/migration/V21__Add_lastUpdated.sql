@@ -33,31 +33,24 @@ alter table "HospiceClaims" add column lastUpdated timestamp with time zone;
 alter table "SNFClaims" add column lastUpdated timestamp with time zone;
 
 -- 
--- Add tables that track the ETL process
+-- Add tables that tracks the ETL process
 --
-
--- One row for each RIF file loaded. The timestamps represent start and end time of processing the file. 
+-- One row for each RIF file loaded. 
+-- The timestamps represent start and end time of processing the RIF file. 
+-- Count is the number of records in the RIF file. 
+-- The filterType allows us to upgrade the filter type in the future.
+-- 
 create table "LoadedFiles" (
-  "fileId" bigint primary key,					        
-  "rifType" varchar(48) not null,							  
-  "firstUpdated" timestamp with time zone,		  	
-  "lastUpdated" timestamp with time zone			  
+  "loadedFileId" bigint primary key,		             			        
+  "rifType" varchar(48) not null,		
+  "count" int not null, 
+  "filterType" varchar(20) not null,		
+  "filterBytes" ${logic.blob},				  
+  "firstUpdated" timestamp with time zone not null,		  	
+  "lastUpdated" timestamp with time zone not null
 )
 ${logic.tablespaces-escape} tablespace "loadedfiles_ts"
 ;
 
-create sequence loadedFiles_fileId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 10;
+create sequence loadedFiles_loadedFileId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 20 cycle;
 
--- One row for each beneficiary updated by a RIF file
-create table "LoadedBeneficiaries" (
-  "fileId" bigint not null,								      
-  "beneficiaryId" varchar(15) not null,				
-  primary key ("fileId", "beneficiaryId")
-)
-${logic.tablespaces-escape} tablespace "loadedbeneficiaries_ts"
-;
-
-alter table "LoadedBeneficiaries" 				
-  add constraint "loadedBeneficiaries_fileId" 
-    foreign key ("fileId") 
-    references "LoadedFiles";

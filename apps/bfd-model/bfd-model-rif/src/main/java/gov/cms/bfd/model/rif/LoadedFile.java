@@ -1,6 +1,5 @@
 package gov.cms.bfd.model.rif;
 
-import java.time.Instant;
 import java.util.Date;
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -9,21 +8,34 @@ import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
+import org.hibernate.annotations.Type;
 
 @Entity
 @Table(name = "`LoadedFiles`")
 public class LoadedFile {
+  public static String ARRAY_LIST_SERIALIZATION = "ArrayList";
+
   @Id
-  @Column(name = "`fileId`", nullable = false)
-  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "loadedFiles_fileId_seq")
+  @Column(name = "`loadedFileId`", nullable = false)
+  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "loadedFiles_loadedFileId_seq")
   @SequenceGenerator(
-      name = "loadedFiles_fileId_seq",
-      sequenceName = "loadedFiles_fileId_seq",
-      allocationSize = 10)
-  private long fileId;
+      name = "loadedFiles_loadedFileId_seq",
+      sequenceName = "loadedFiles_loadedFileId_seq",
+      allocationSize = 20)
+  private long loadedFileId;
 
   @Column(name = "`rifType`", nullable = false)
   private String rifType;
+
+  @Column(name = "`count`", nullable = false)
+  private int count;
+
+  @Column(name = "`filterType`", nullable = false)
+  private String filterType;
+
+  @Column(name = "`filterBytes`", nullable = true)
+  @Type(type = "org.hibernate.type.BinaryType")
+  private byte[] filterBytes;
 
   @Column(name = "`firstUpdated`", nullable = false)
   private Date firstUpdated;
@@ -36,40 +48,39 @@ public class LoadedFile {
   /**
    * Create a LoadedFile
    *
-   * @param fileId id
-   * @param rifType RIFFileType
+   * @param loadedFileId id
+   * @param rifType RifFileType
+   * @param count of records
+   * @param filterType determines the filter serialization
+   * @param filterBytes determines the filter data
    * @param firstUpdated first updated date
    * @param lastUpdated last updated date
    */
-  public LoadedFile(long fileId, String rifType, Date firstUpdated, Date lastUpdated) {
-    this.fileId = fileId;
+  public LoadedFile(
+      long loadedFileId,
+      String rifType,
+      int count,
+      String filterType,
+      byte[] filterBytes,
+      Date firstUpdated,
+      Date lastUpdated) {
+    this.loadedFileId = loadedFileId;
     this.rifType = rifType;
+    this.count = count;
+    this.filterType = filterType;
+    this.filterBytes = filterBytes;
     this.firstUpdated = firstUpdated;
     this.lastUpdated = lastUpdated;
   }
 
-  /**
-   * Create a new LoadedFile from a RifFileEvent
-   *
-   * @return a new entity
-   */
-  public static LoadedFile from(RifFileEvent fileEvent) {
-    LoadedFile entity = new LoadedFile();
-    Date nowDate = Date.from(Instant.now());
-    entity.setFirstUpdated(nowDate);
-    entity.setLastUpdated(nowDate);
-    entity.setRifType(fileEvent.getFile().getFileType().toString());
-    return entity;
+  /** @return the identifier */
+  public long getLoadedFileId() {
+    return loadedFileId;
   }
 
-  /** @return the fileId */
-  public long getFileId() {
-    return fileId;
-  }
-
-  /** @param fileId the fileId to set */
-  public void setFileId(long fileId) {
-    this.fileId = fileId;
+  /** @param loadedFileId the identifier to set */
+  public void setLoadedFileId(long loadedFileId) {
+    this.loadedFileId = loadedFileId;
   }
 
   /** @return the rifType */
@@ -80,6 +91,30 @@ public class LoadedFile {
   /** @param rifType the rifType to set */
   public void setRifType(String rifType) {
     this.rifType = rifType;
+  }
+
+  public int getCount() {
+    return count;
+  }
+
+  public void setCount(int count) {
+    this.count = count;
+  }
+
+  public String getFilterType() {
+    return filterType;
+  }
+
+  public void setFilterType(String filterType) {
+    this.filterType = filterType;
+  }
+
+  public byte[] getFilterBytes() {
+    return filterBytes;
+  }
+
+  public void setFilterBytes(byte[] filterBytes) {
+    this.filterBytes = filterBytes;
   }
 
   /** @return the firstUpdated */

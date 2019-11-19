@@ -11,7 +11,7 @@ import java.util.Date;
  * href="https://en.wikipedia.org/wiki/Bloom_filter">Bloom Filters</a>) which are space efficient.
  */
 public class LoadedFileFilter {
-  private long fileId;
+  private long loadedFileId;
   private Date firstUpdated;
   private Date lastUpdated;
   private BloomFilter<String> updatedBeneficiaries;
@@ -19,14 +19,17 @@ public class LoadedFileFilter {
   /**
    * Build a filter for a LoadedFile
    *
-   * @param fileId for this filter
+   * @param loadedFileId for this filter
    * @param firstUpdated for this filter
    * @param lastUpdated for this filter
    * @param updatedBeneficiaries bloom filter for this filter
    */
   public LoadedFileFilter(
-      long fileId, Date firstUpdated, Date lastUpdated, BloomFilter<String> updatedBeneficiaries) {
-    this.fileId = fileId;
+      long loadedFileId,
+      Date firstUpdated,
+      Date lastUpdated,
+      BloomFilter<String> updatedBeneficiaries) {
+    this.loadedFileId = loadedFileId;
     this.firstUpdated = firstUpdated;
     this.lastUpdated = lastUpdated;
     this.updatedBeneficiaries = updatedBeneficiaries;
@@ -91,13 +94,13 @@ public class LoadedFileFilter {
   }
 
   /** @return the fileId */
-  public long getFileId() {
-    return fileId;
+  public long getLoadedFileId() {
+    return loadedFileId;
   }
 
-  /** @param fileId the fileId to set */
-  public void setFileId(long fileId) {
-    this.fileId = fileId;
+  /** @param loadedFileId the fileId to set */
+  public void setLoadedFileId(long loadedFileId) {
+    this.loadedFileId = loadedFileId;
   }
 
   /** @return the firstUpdated */

@@ -73,23 +73,6 @@ public final class RifLoaderTestUtils {
   }
 
   /**
-   * Get the list of beneficiaries from a single loaded file
-   *
-   * @param entityManager to use
-   * @param fileId to use
-   * @return the list of beneficiaries
-   */
-  public static List<String> findLoadedBeneficiaries(EntityManager entityManager, long fileId) {
-    entityManager.clear();
-    return entityManager
-        .createQuery(
-            "select b.beneficiaryId from LoadedBeneficiary b where b.fileId = :fileId",
-            String.class)
-        .setParameter("fileId", fileId)
-        .getResultList();
-  }
-
-  /**
    * Return a Files Event with a single dummy file
    *
    * @return a new RifFilesEvent

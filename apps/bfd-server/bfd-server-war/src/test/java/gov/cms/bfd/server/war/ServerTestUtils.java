@@ -5,7 +5,6 @@ import ca.uhn.fhir.rest.client.api.IGenericClient;
 import ca.uhn.fhir.rest.client.interceptor.LoggingInterceptor;
 import com.codahale.metrics.MetricRegistry;
 import gov.cms.bfd.model.rif.Beneficiary;
-import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
 import gov.cms.bfd.model.rif.RifFilesEvent;
@@ -273,8 +272,6 @@ public final class ServerTestUtils {
             if (t2.equals(Beneficiary.class)) return -1;
             if (t1.getSimpleName().endsWith("Line")) return -1;
             if (t2.getSimpleName().endsWith("Line")) return 1;
-            if (t1.equals(LoadedFile.class)) return 1;
-            if (t2.equals(LoadedFile.class)) return -1;
             return 0;
           };
       List<Class<?>> entityTypesInDeletionOrder =

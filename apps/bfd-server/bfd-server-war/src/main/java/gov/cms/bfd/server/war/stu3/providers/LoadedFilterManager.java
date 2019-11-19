@@ -2,20 +2,20 @@ package gov.cms.bfd.server.war.stu3.providers;
 
 import ca.uhn.fhir.rest.param.DateRangeParam;
 import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnel;
 import com.google.common.hash.Funnels;
 import gov.cms.bfd.model.rif.LoadedFile;
+import gov.cms.bfd.model.rif.LoadedFileBuilder;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.List;
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
-import org.hibernate.ScrollMode;
-import org.hibernate.ScrollableResults;
-import org.hibernate.Session;
-import org.hibernate.StatelessSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,8 +25,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class LoadedFilterManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(LoadedFilterManager.class);
-  // The batch size of beneficiaries to fetch from the LoadedBenficiaries table
-  private static final int FETCH_SIZE = 1000;
 
   private List<LoadedFileFilter> filters = Arrays.asList();
   private EntityManager entityManager;
@@ -100,28 +98,47 @@ public class LoadedFilterManager {
      * process will be quick when no loaded file changes are found.
      */
     entityManager.clear(); // Make sure we go back to the DB, not the persistence context
-    List<LoadedFile> loadedFiles =
+    Iterator loadedFilesIterator =
         entityManager
-            .createQuery("select f from LoadedFile f order by f.lastUpdated desc", LoadedFile.class)
-            .getResultList();
+            .createQuery(
+                "select f.loadedFileId, f.rifType, f.count, f.filterType, f.firstUpdated, f.lastUpdated "
+                    + "from LoadedFile as f "
+                    + "order by f.lastUpdated desc")
+            .getResultList()
+            .iterator();
     /**
      * Dev note: refreshTime should be calculated on the pipeline's clock as other dates are. There
      * is the possiblity of clock skew and db replication delay between the pipeline and the data
      * server. Here we add subract a few seconds a safety margin for the possibility of these
      * effects. There methods to do a better estimate, but they are not worth the effort.
      */
-    Date localTime = Date.from(Instant.now().minusSeconds(delaySeconds));
-    refreshTime =
-        loadedFiles.size() > 0 && loadedFiles.get(0).getLastUpdated().after(localTime)
-            ? loadedFiles.get(0).getLastUpdated()
-            : localTime;
+    refreshTime = Date.from(Instant.now().minusSeconds(delaySeconds));
 
     // Update the filters
-    for (LoadedFile loadedFile : loadedFiles) {
-      if (!hasFilterFor(loadedFile)) {
-        LoadedFileFilter newFilter = buildFilter(loadedFile);
-        updateFilters(newFilter);
+    try {
+      while (loadedFilesIterator.hasNext()) {
+        Object[] row = (Object[]) loadedFilesIterator.next();
+        LoadedFile loadedFile =
+            new LoadedFile(
+                (long) row[0], // loadedFileId
+                (String) row[1], // rifType
+                (int) row[2], // count
+                (String) row[3], // filterType
+                null, // filterBytes
+                (Date) row[4], // firstUpdated
+                (Date) row[5] // lastUpdated
+                );
+        if (!hasFilterFor(loadedFile)) {
+          LoadedFileFilter newFilter = buildFilter(loadedFile);
+          updateFilters(newFilter);
+        }
+        Date lastUpdated = (Date) row[5];
+        if (refreshTime.before(lastUpdated)) {
+          refreshTime = lastUpdated;
+        }
       }
+    } catch (Exception ex) {
+      LOGGER.error("Error found refreshing LoadedFile filters", ex);
     }
   }
 
@@ -169,7 +186,7 @@ public class LoadedFilterManager {
     return filters.stream()
         .anyMatch(
             filter -> {
-              return filter.getFileId() == loaded.getFileId()
+              return filter.getLoadedFileId() == loaded.getLoadedFileId()
                   && filter.getLastUpdated() == loaded.getLastUpdated()
                   && filter.getFirstUpdated() == loaded.getFirstUpdated();
             });
@@ -182,62 +199,34 @@ public class LoadedFilterManager {
    * @param loadedFile to build a filter
    * @return a new filter
    */
-  private LoadedFileFilter buildFilter(LoadedFile loadedFile) {
-    Long beneCount =
-        entityManager
-            .createQuery(
-                "select count(b) from LoadedBeneficiary b where b.fileId = :fileId", Long.class)
-            .setParameter("fileId", loadedFile.getFileId())
-            .getSingleResult();
+  private LoadedFileFilter buildFilter(LoadedFile loadedFile)
+      throws IOException, ClassNotFoundException {
     LOGGER.info(
         "Building loaded file filter for loaded file {} with {} beneficiaries",
-        loadedFile.getFileId(),
-        beneCount);
-    BloomFilter<String> bloomFilter =
-        BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), beneCount);
-    fillBloomFilter(entityManager, loadedFile.getFileId(), bloomFilter);
-    LOGGER.info("Finished building filter for file {}", loadedFile.getFileId());
+        loadedFile.getLoadedFileId(),
+        loadedFile.getCount());
+
+    byte[] filterBytes =
+        entityManager
+            .createQuery(
+                "select f.filterBytes from LoadedFile f where f.loadedFileId = :loadedFileId",
+                byte[].class)
+            .setParameter("loadedFileId", loadedFile.getLoadedFileId())
+            .getSingleResult();
+    ArrayList<String> beneficiaries = LoadedFileBuilder.deserializeBeneficiaries(filterBytes);
+
+    Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
+    BloomFilter<String> bloomFilter = BloomFilter.create(funnel, loadedFile.getCount());
+    for (String beneficiary : beneficiaries) {
+      bloomFilter.put(beneficiary);
+    }
+
+    LOGGER.info("Finished building filter for file {}", loadedFile.getLoadedFileId());
     return new LoadedFileFilter(
-        loadedFile.getFileId(),
+        loadedFile.getLoadedFileId(),
         loadedFile.getFirstUpdated(),
         loadedFile.getLastUpdated(),
         bloomFilter);
-  }
-
-  /**
-   * Fill the bloom filter with beneficiaries associated with fileId
-   *
-   * @param entityManager to use
-   * @param fileId to fetch
-   * @param bloomFilter to fill
-   */
-  private void fillBloomFilter(
-      EntityManager entityManager, long fileId, BloomFilter<String> bloomFilter) {
-    /**
-     * Dev note: The number of beneficiaries in a loaded file can be large (>1M). So we could be in
-     * this loop for a while. Hibernate's ScrollableResults allows us to add the beneficiaries in
-     * small batches. JPA 2.2 has a similar stream feature, but we are not using this package.
-     * StatelessSession doesn't create level 1 or 2 cache objects.
-     *
-     * <p>See
-     * https://docs.jboss.org/hibernate/core/3.3/reference/en-US/html/batch.html#batch-statelesssession.
-     */
-    StatelessSession session =
-        entityManager.unwrap(Session.class).getSessionFactory().openStatelessSession();
-    try (ScrollableResults results =
-        session
-            .createQuery("select b.beneficiaryId from LoadedBeneficiary b where b.fileId = :fileId")
-            .setParameter("fileId", fileId)
-            .setReadOnly(true)
-            .setCacheable(false)
-            .setFetchSize(FETCH_SIZE)
-            .scroll(ScrollMode.FORWARD_ONLY)) {
-      while (results.next()) {
-        String beneficiaryId = results.getText(0);
-        bloomFilter.put(beneficiaryId);
-      }
-    }
-    session.close();
   }
 
   /**
@@ -248,13 +237,13 @@ public class LoadedFilterManager {
    * @return a new filter
    */
   private LoadedFileFilter buildFilterDirectly(LoadedFile loadedFile, List<String> beneficiaries) {
-    BloomFilter<String> bloomFilter =
-        BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), beneficiaries.size());
+    Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
+    BloomFilter<String> bloomFilter = BloomFilter.create(funnel, beneficiaries.size());
     for (String beneId : beneficiaries) {
       bloomFilter.put(beneId);
     }
     return new LoadedFileFilter(
-        loadedFile.getFileId(),
+        loadedFile.getLoadedFileId(),
         loadedFile.getFirstUpdated(),
         loadedFile.getLastUpdated(),
         bloomFilter);
@@ -269,7 +258,7 @@ public class LoadedFilterManager {
   private void updateFilters(LoadedFileFilter newFilter) {
     synchronized (this) { // Avoid multiple writer race conditions
       ArrayList<LoadedFileFilter> copy = new ArrayList<>(filters);
-      copy.removeIf(filter -> filter.getFileId() == newFilter.getFileId());
+      copy.removeIf(filter -> filter.getLoadedFileId() == newFilter.getLoadedFileId());
       copy.add(newFilter);
       copy.sort((a, b) -> b.getLastUpdated().compareTo(a.getLastUpdated())); // Decsending order
       filters = copy;
