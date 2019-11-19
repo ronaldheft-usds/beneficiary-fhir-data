@@ -2,7 +2,9 @@ package gov.cms.bfd.server.war.stu3.providers;
 
 import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.DateRangeParam;
+import com.google.common.base.Charsets;
 import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
 import java.util.Date;
 
 /**
@@ -90,7 +92,11 @@ public class LoadedFileFilter {
    * @return true if the filter may contain the beneficiary
    */
   public boolean mightContain(String beneficiaryId) {
-    return updatedBeneficiaries.mightContain(beneficiaryId);
+    try {
+      return updatedBeneficiaries.mightContain(beneficiaryId);
+    } catch (NumberFormatException ex) {
+      return false;
+    }
   }
 
   /** @return the fileId */
@@ -111,5 +117,15 @@ public class LoadedFileFilter {
   /** @return the updatedBeneficiaries */
   public BloomFilter<String> getUpdatedBeneficiaries() {
     return updatedBeneficiaries;
+  }
+
+  /**
+   * Create a bloom filter with passed size
+   *
+   * @param count to allocate
+   * @return a new BloomFilter
+   */
+  public static BloomFilter<String> createFilter(int count) {
+    return BloomFilter.create(Funnels.stringFunnel(Charsets.UTF_8), count);
   }
 }

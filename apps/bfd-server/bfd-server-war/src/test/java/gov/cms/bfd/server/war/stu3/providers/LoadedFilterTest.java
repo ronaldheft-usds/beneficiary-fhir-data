@@ -4,8 +4,6 @@ import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.DateRangeParam;
 import ca.uhn.fhir.rest.param.ParamPrefixEnum;
 import com.google.common.hash.BloomFilter;
-import com.google.common.hash.Funnels;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -17,8 +15,7 @@ public final class LoadedFilterTest {
 
   @Test
   public void testMatchesDateRange() {
-    final BloomFilter<String> emptyFilter =
-        BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), 10);
+    final BloomFilter<String> emptyFilter = LoadedFileFilter.createFilter(10);
     final LoadedFileFilter filter1 =
         new LoadedFileFilter(
             1,
@@ -89,11 +86,10 @@ public final class LoadedFilterTest {
   @Test
   public void testMightContain() {
     // Very small test on the Guava implementation of BloomFilters. Assume this package works.
-    final BloomFilter<String> smallFilter =
-        BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), 10);
+    final BloomFilter<String> smallFilter = LoadedFileFilter.createFilter(10);
     smallFilter.put("1");
     smallFilter.put("100");
-    smallFilter.put("101");
+    smallFilter.put("100");
 
     final LoadedFileFilter filter1 =
         new LoadedFileFilter(
@@ -103,6 +99,7 @@ public final class LoadedFilterTest {
             smallFilter);
 
     Assert.assertTrue("Expected to contain this", filter1.mightContain("1"));
-    Assert.assertFalse("Expected to not contain this", filter1.mightContain("89DS"));
+    Assert.assertFalse("Expected to not contain this", filter1.mightContain("888"));
+    Assert.assertFalse("Expected to not contain this", filter1.mightContain("BAD"));
   }
 }

@@ -2,12 +2,9 @@ package gov.cms.bfd.server.war.stu3.providers;
 
 import ca.uhn.fhir.rest.param.DateRangeParam;
 import com.google.common.hash.BloomFilter;
-import com.google.common.hash.Funnel;
-import com.google.common.hash.Funnels;
 import gov.cms.bfd.model.meta.FilterSerialization;
 import gov.cms.bfd.model.meta.LoadedFile;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -160,7 +157,8 @@ public class LoadedFilterManager {
     // Update the filters
     for (LoadedFile loadedFile : loadedFiles) {
       if (!hasFilterFor(loadedFile)) {
-        final LoadedFileFilter newFilter = buildFilterDirectly(loadedFile, beneficiaries);
+        final LoadedFileFilter newFilter =
+            buildFilterDirectly(loadedFile, FilterSerialization.fromList(beneficiaries));
         updateFilters(newFilter);
       }
     }
@@ -213,11 +211,10 @@ public class LoadedFilterManager {
                 byte[].class)
             .setParameter("loadedFileId", loadedFile.getLoadedFileId())
             .getSingleResult();
-    final ArrayList<String> beneficiaries =
-        FilterSerialization.deserializeBeneficiaries(filterBytes);
+    final String filterType = loadedFile.getFilterType();
+    final String[] beneficiaries = FilterSerialization.deserialize(filterType, filterBytes);
 
-    final Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
-    final BloomFilter<String> bloomFilter = BloomFilter.create(funnel, loadedFile.getCount());
+    final BloomFilter<String> bloomFilter = LoadedFileFilter.createFilter(beneficiaries.length);
     for (String beneficiary : beneficiaries) {
       bloomFilter.put(beneficiary);
     }
@@ -237,9 +234,8 @@ public class LoadedFilterManager {
    * @param beneficiaries to fill the filter
    * @return a new filter
    */
-  private LoadedFileFilter buildFilterDirectly(LoadedFile loadedFile, List<String> beneficiaries) {
-    final Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
-    final BloomFilter<String> bloomFilter = BloomFilter.create(funnel, beneficiaries.size());
+  private LoadedFileFilter buildFilterDirectly(LoadedFile loadedFile, String[] beneficiaries) {
+    final BloomFilter<String> bloomFilter = LoadedFileFilter.createFilter(beneficiaries.length);
     for (String beneId : beneficiaries) {
       bloomFilter.put(beneId);
     }

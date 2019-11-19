@@ -28,7 +28,7 @@ public class LoadedFileBuilder {
    *
    * @param beneficiaryId to put in the filter
    */
-  public void associateBeneficiary(String beneficiaryId) {
+  public void associateBeneficiary(String beneficiaryId) throws NumberFormatException {
     beneficiaries.add(beneficiaryId);
   }
 
@@ -40,12 +40,13 @@ public class LoadedFileBuilder {
    */
   public LoadedFile build() throws IOException {
     final LoadedFile file = new LoadedFile();
+    final String[] array = FilterSerialization.fromList(beneficiaries);
     file.setRifType(rifFileType);
     file.setCount(beneficiaries.size());
     file.setFirstUpdated(startTime);
     file.setLastUpdated(Date.from(Instant.now()));
-    file.setFilterType(FilterSerialization.ARRAY_LIST_SERIALIZATION);
-    file.setFilterBytes(FilterSerialization.serializeBeneficiaries(beneficiaries));
+    file.setFilterType(FilterSerialization.DEFAULT_SERIALIZATION);
+    file.setFilterBytes(FilterSerialization.serialize(array));
     return file;
   }
 }

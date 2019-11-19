@@ -9,7 +9,6 @@ import gov.cms.bfd.model.rif.RifFileType;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import org.junit.Assert;
@@ -228,14 +227,13 @@ public final class LoadedFilterManagerTest {
 
   public LoadedFile buildLoadedFile(long loadedFileId, Date firstUpdated, Date lastUpdated)
       throws IOException {
-    final ArrayList<String> benes = new ArrayList<String>();
-    benes.add(SAMPLE_BENE);
-    final byte[] beneBytes = FilterSerialization.serializeBeneficiaries(benes);
+    final String[] benes = {SAMPLE_BENE};
+    final byte[] beneBytes = FilterSerialization.serialize(benes);
     return new LoadedFile(
         loadedFileId,
         RifFileType.BENEFICIARY.toString(),
-        benes.size(),
-        FilterSerialization.ARRAY_LIST_SERIALIZATION,
+        benes.length,
+        FilterSerialization.DEFAULT_SERIALIZATION,
         beneBytes,
         firstUpdated,
         lastUpdated);
