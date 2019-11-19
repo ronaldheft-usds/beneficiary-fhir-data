@@ -3,8 +3,8 @@ package gov.cms.bfd.server.war.stu3.providers;
 import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.DateRangeParam;
 import ca.uhn.fhir.rest.param.ParamPrefixEnum;
-import gov.cms.bfd.model.rif.LoadedFile;
-import gov.cms.bfd.model.rif.LoadedFileBuilder;
+import gov.cms.bfd.model.meta.FilterSerialization;
+import gov.cms.bfd.model.meta.LoadedFile;
 import gov.cms.bfd.model.rif.RifFileType;
 import java.io.IOException;
 import java.time.Instant;
@@ -230,12 +230,12 @@ public final class LoadedFilterManagerTest {
       throws IOException {
     ArrayList<String> benes = new ArrayList<String>();
     benes.add(SAMPLE_BENE);
-    byte[] beneBytes = LoadedFileBuilder.serializeBeneficiaries(benes);
+    byte[] beneBytes = FilterSerialization.serializeBeneficiaries(benes);
     return new LoadedFile(
         loadedFileId,
         RifFileType.BENEFICIARY.toString(),
         benes.size(),
-        LoadedFile.ARRAY_LIST_SERIALIZATION,
+        FilterSerialization.ARRAY_LIST_SERIALIZATION,
         beneBytes,
         firstUpdated,
         lastUpdated);

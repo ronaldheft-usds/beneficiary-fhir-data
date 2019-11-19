@@ -1,40 +1,15 @@
-package gov.cms.bfd.model.rif;
+package gov.cms.bfd.model.meta;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Date;
 
-/** Class to build a LoadedFile and serialize and deserialize a filter. */
-public class LoadedFileBuilder {
-  private ArrayList<String> beneficiaries;
-  private Date startTime;
-  private RifFileType rifFileType;
-
-  public LoadedFileBuilder(RifFileEvent rifFileEvent) {
-    this.rifFileType = rifFileEvent.getFile().getFileType();
-    this.startTime = Date.from(Instant.now());
-    this.beneficiaries = new ArrayList<>();
-  }
-
-  public void associateBeneficiary(String beneficiaryId) {
-    beneficiaries.add(beneficiaryId);
-  }
-
-  public LoadedFile build() throws IOException {
-    final LoadedFile file = new LoadedFile();
-    file.setRifType(rifFileType.toString());
-    file.setCount(beneficiaries.size());
-    file.setFirstUpdated(startTime);
-    file.setLastUpdated(Date.from(Instant.now()));
-    file.setFilterType(LoadedFile.ARRAY_LIST_SERIALIZATION);
-    file.setFilterBytes(serializeBeneficiaries(beneficiaries));
-    return file;
-  }
+/** Class to serialize and deserialize a filter. */
+public class FilterSerialization {
+  public static String ARRAY_LIST_SERIALIZATION = "ArrayList";
 
   public static byte[] serializeBeneficiaries(ArrayList<String> beneficiaries) throws IOException {
     try (final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();

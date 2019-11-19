@@ -4,8 +4,8 @@ import ca.uhn.fhir.rest.param.DateRangeParam;
 import com.google.common.hash.BloomFilter;
 import com.google.common.hash.Funnel;
 import com.google.common.hash.Funnels;
-import gov.cms.bfd.model.rif.LoadedFile;
-import gov.cms.bfd.model.rif.LoadedFileBuilder;
+import gov.cms.bfd.model.meta.FilterSerialization;
+import gov.cms.bfd.model.meta.LoadedFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -213,7 +213,7 @@ public class LoadedFilterManager {
                 byte[].class)
             .setParameter("loadedFileId", loadedFile.getLoadedFileId())
             .getSingleResult();
-    ArrayList<String> beneficiaries = LoadedFileBuilder.deserializeBeneficiaries(filterBytes);
+    ArrayList<String> beneficiaries = FilterSerialization.deserializeBeneficiaries(filterBytes);
 
     Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
     BloomFilter<String> bloomFilter = BloomFilter.create(funnel, loadedFile.getCount());

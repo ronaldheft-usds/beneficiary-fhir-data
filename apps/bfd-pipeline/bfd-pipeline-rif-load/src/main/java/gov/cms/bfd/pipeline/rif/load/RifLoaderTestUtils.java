@@ -1,6 +1,6 @@
 package gov.cms.bfd.pipeline.rif.load;
 
-import gov.cms.bfd.model.rif.LoadedFile;
+import gov.cms.bfd.model.meta.LoadedFile;
 import gov.cms.bfd.model.rif.RifFile;
 import gov.cms.bfd.model.rif.RifFileType;
 import gov.cms.bfd.model.rif.RifFilesEvent;

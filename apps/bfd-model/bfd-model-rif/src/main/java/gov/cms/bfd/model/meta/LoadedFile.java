@@ -1,4 +1,4 @@
-package gov.cms.bfd.model.rif;
+package gov.cms.bfd.model.meta;
 
 import java.util.Date;
 import javax.persistence.Column;
@@ -13,7 +13,6 @@ import org.hibernate.annotations.Type;
 @Entity
 @Table(name = "`LoadedFiles`")
 public class LoadedFile {
-  public static String ARRAY_LIST_SERIALIZATION = "ArrayList";
 
   @Id
   @Column(name = "`loadedFileId`", nullable = false)
