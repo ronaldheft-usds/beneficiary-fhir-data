@@ -32,24 +32,24 @@ public final class LoadedFilterManagerIT {
   public void refreshFilters() {
     RifLoaderTestUtils.doTestWithDb(
         (dataSource, entityManager) -> {
-          LoadedFilterManager filterManager = new LoadedFilterManager();
+          final LoadedFilterManager filterManager = new LoadedFilterManager();
           filterManager.setEntityManager(entityManager);
           loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
 
           // Without a refresh, the manager should have an empty filter list
-          List<LoadedFileFilter> beforeFilters = filterManager.getFilters();
+          final List<LoadedFileFilter> beforeFilters = filterManager.getFilters();
           Assert.assertEquals(0, beforeFilters.size());
 
           // Refresh the filter list
           filterManager.refreshFiltersWithDelay(0);
 
           // Should have many filters
-          List<LoadedFileFilter> afterFilters = filterManager.getFilters();
+          final List<LoadedFileFilter> afterFilters = filterManager.getFilters();
           Assert.assertTrue(afterFilters.size() > 1);
 
           // Should be sorted by lastUpdated date
-          LoadedFileFilter firstFilter = afterFilters.get(0);
-          LoadedFileFilter lastFilter = afterFilters.get(afterFilters.size() - 1);
+          final LoadedFileFilter firstFilter = afterFilters.get(0);
+          final LoadedFileFilter lastFilter = afterFilters.get(afterFilters.size() - 1);
           Assert.assertTrue(
               lastFilter.getLastUpdated().getTime() <= firstFilter.getLastUpdated().getTime());
         });
@@ -60,16 +60,17 @@ public final class LoadedFilterManagerIT {
   public void isResultSetEmpty() {
     RifLoaderTestUtils.doTestWithDb(
         (dataSource, entityManager) -> {
-          LoadedFilterManager filterManager = new LoadedFilterManager();
+          final LoadedFilterManager filterManager = new LoadedFilterManager();
           filterManager.setEntityManager(entityManager);
           loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
 
           // Establish a couple of times
           RifLoaderTestUtils.pauseMillis(1000);
-          Date afterSampleA = Date.from(Instant.now());
+          final Date afterSampleA = Date.from(Instant.now());
           RifLoaderTestUtils.pauseMillis(10);
-          Date afterSampleAPlus = Date.from(Instant.now());
-          DateRangeParam afterSampleARange = new DateRangeParam(afterSampleA, afterSampleAPlus);
+          final Date afterSampleAPlus = Date.from(Instant.now());
+          final DateRangeParam afterSampleARange =
+              new DateRangeParam(afterSampleA, afterSampleAPlus);
 
           // Refresh the filter list
           RifLoaderTestUtils.pauseMillis(10);
@@ -90,16 +91,17 @@ public final class LoadedFilterManagerIT {
   public void testWithMultipleRefreshes() {
     RifLoaderTestUtils.doTestWithDb(
         (dataSource, entityManager) -> {
-          LoadedFilterManager filterManager = new LoadedFilterManager();
+          final LoadedFilterManager filterManager = new LoadedFilterManager();
           filterManager.setEntityManager(entityManager);
           loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
 
           // Establish a couple of times
           RifLoaderTestUtils.pauseMillis(1000);
-          Date afterSampleA = Date.from(Instant.now());
+          final Date afterSampleA = Date.from(Instant.now());
           RifLoaderTestUtils.pauseMillis(10);
-          Date afterSampleAPlus = Date.from(Instant.now());
-          DateRangeParam afterSampleARange = new DateRangeParam(afterSampleA, afterSampleAPlus);
+          final Date afterSampleAPlus = Date.from(Instant.now());
+          final DateRangeParam afterSampleARange =
+              new DateRangeParam(afterSampleA, afterSampleAPlus);
 
           // Refresh the filter list
           RifLoaderTestUtils.pauseMillis(10);
@@ -117,8 +119,8 @@ public final class LoadedFilterManagerIT {
 
           // Load again
           RifLoaderTestUtils.pauseMillis(1000);
-          Date afterSampleU = Date.from(Instant.now());
-          DateRangeParam aroundSampleU = new DateRangeParam(afterSampleA, afterSampleU);
+          final Date afterSampleU = Date.from(Instant.now());
+          final DateRangeParam aroundSampleU = new DateRangeParam(afterSampleA, afterSampleU);
           filterManager.refreshFiltersWithDelay(0);
 
           // Test after refresh
@@ -142,7 +144,7 @@ public final class LoadedFilterManagerIT {
     // Create the processors that will handle each stage of the pipeline.
     MetricRegistry loadAppMetrics = new MetricRegistry();
     RifFilesProcessor processor = new RifFilesProcessor();
-    try (RifLoader loader = new RifLoader(loadAppMetrics, loadOptions)) {
+    try (final RifLoader loader = new RifLoader(loadAppMetrics, loadOptions)) {
       // Link up the pipeline and run it.
       for (RifFileEvent rifFileEvent : rifFilesEvent.getFileEvents()) {
         RifFileRecords rifFileRecords = processor.produceRecords(rifFileEvent);

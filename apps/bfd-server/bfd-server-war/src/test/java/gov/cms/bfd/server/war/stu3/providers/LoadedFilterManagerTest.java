@@ -37,18 +37,18 @@ public final class LoadedFilterManagerTest {
 
     // Create sample1
     LoadedFile sample1 = buildLoadedFile(1, dates[2], dates[5]);
-    DateRangeParam during1 = new DateRangeParam(dates[3], dates[4]);
-    DateRangeParam before1 = new DateRangeParam(dates[0], dates[1]);
-    DateRangeParam after1 = new DateRangeParam(dates[6], dates[7]);
-    DateRangeParam afterRefresh = new DateRangeParam(dates[3], dates[9]);
-    DateRangeParam afterUnbounded =
+    final DateRangeParam during1 = new DateRangeParam(dates[3], dates[4]);
+    final DateRangeParam before1 = new DateRangeParam(dates[0], dates[1]);
+    final DateRangeParam after1 = new DateRangeParam(dates[6], dates[7]);
+    final DateRangeParam afterRefresh = new DateRangeParam(dates[3], dates[9]);
+    final DateRangeParam afterUnbounded =
         new DateRangeParam()
             .setLowerBound(new DateParam(ParamPrefixEnum.GREATERTHAN_OR_EQUALS, dates[6]));
-    DateRangeParam beforeUnbounded =
+    final DateRangeParam beforeUnbounded =
         new DateRangeParam()
             .setUpperBound(new DateParam(ParamPrefixEnum.LESSTHAN_OR_EQUALS, dates[7]));
 
-    LoadedFilterManager filterManager = new LoadedFilterManager();
+    final LoadedFilterManager filterManager = new LoadedFilterManager();
 
     // Test before refresh
     Assert.assertFalse(
@@ -98,8 +98,8 @@ public final class LoadedFilterManagerTest {
         filterManager.isResultSetEmpty(INVALID_BENE, beforeUnbounded));
 
     // Test exclusive & inclusive time
-    DateRangeParam inclusive1 = new DateRangeParam(dates[5], dates[6]);
-    DateRangeParam exclusive1 =
+    final DateRangeParam inclusive1 = new DateRangeParam(dates[5], dates[6]);
+    final DateRangeParam exclusive1 =
         new DateRangeParam().setLowerBoundExclusive(dates[5]).setUpperBoundExclusive(dates[6]);
     Assert.assertFalse(
         "Time period should match and result is not empty",
@@ -112,23 +112,23 @@ public final class LoadedFilterManagerTest {
   @Test
   public void multipleFile() throws IOException {
     // Create a few times
-    Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
-    Date[] dates = new Date[20];
+    final Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
+    final Date[] dates = new Date[20];
     for (int i = 0; i < dates.length; i++) {
       dates[i] = Date.from(now.plusSeconds(i));
     }
 
     // Create sample1
-    LoadedFile sample1 = buildLoadedFile(1, dates[2], dates[5]);
-    DateRangeParam during1 = new DateRangeParam(dates[3], dates[4]);
+    final LoadedFile sample1 = buildLoadedFile(1, dates[2], dates[5]);
+    final DateRangeParam during1 = new DateRangeParam(dates[3], dates[4]);
 
     // Create sample2
-    LoadedFile sample2 = buildLoadedFile(2, dates[8], dates[11]);
-    DateRangeParam during2 = new DateRangeParam(dates[9], dates[10]);
-    DateRangeParam between = new DateRangeParam(dates[6], dates[7]);
-    DateRangeParam both = new DateRangeParam(dates[2], dates[11]);
+    final LoadedFile sample2 = buildLoadedFile(2, dates[8], dates[11]);
+    final DateRangeParam during2 = new DateRangeParam(dates[9], dates[10]);
+    final DateRangeParam between = new DateRangeParam(dates[6], dates[7]);
+    final DateRangeParam both = new DateRangeParam(dates[2], dates[11]);
 
-    LoadedFilterManager filterManager = new LoadedFilterManager();
+    final LoadedFilterManager filterManager = new LoadedFilterManager();
     filterManager.refreshFiltersDirectly(
         Arrays.asList(sample1, sample2), Arrays.asList(SAMPLE_BENE), dates[16]);
 
@@ -168,18 +168,18 @@ public final class LoadedFilterManagerTest {
   @Test
   public void testEmptyFile() throws IOException {
     // Create a few times
-    Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
-    Date[] dates = new Date[20];
+    final Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
+    final Date[] dates = new Date[20];
     for (int i = 0; i < dates.length; i++) {
       dates[i] = Date.from(now.plusSeconds(i));
     }
 
-    LoadedFilterManager filterManager = new LoadedFilterManager();
+    final LoadedFilterManager filterManager = new LoadedFilterManager();
 
     // Create empty file
-    LoadedFile emptyFile1 = buildLoadedFile(1, dates[2], dates[2]);
-    DateRangeParam before1 = new DateRangeParam(dates[0], dates[1]);
-    DateRangeParam during1 = new DateRangeParam(dates[2], dates[3]);
+    final LoadedFile emptyFile1 = buildLoadedFile(1, dates[2], dates[2]);
+    final DateRangeParam before1 = new DateRangeParam(dates[0], dates[1]);
+    final DateRangeParam during1 = new DateRangeParam(dates[2], dates[3]);
 
     filterManager.refreshFiltersDirectly(Arrays.asList(emptyFile1), Arrays.asList(), dates[4]);
 
@@ -195,32 +195,32 @@ public final class LoadedFilterManagerTest {
   @Test
   public void testUpdateFile() throws IOException {
     // Create a few times
-    Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
-    Date[] dates = new Date[20];
+    final Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
+    final Date[] dates = new Date[20];
     for (int i = 0; i < dates.length; i++) {
       dates[i] = Date.from(now.plusSeconds(i));
     }
 
-    LoadedFilterManager filterManager = new LoadedFilterManager();
+    final LoadedFilterManager filterManager = new LoadedFilterManager();
 
     // refresh with an emptyFile
-    LoadedFile emptyFile1 = buildLoadedFile(1, dates[2], dates[2]);
+    final LoadedFile emptyFile1 = buildLoadedFile(1, dates[2], dates[2]);
     filterManager.refreshFiltersDirectly(Arrays.asList(emptyFile1), Arrays.asList(), dates[4]);
 
     // Update the file and refresh again
-    LoadedFile file1 = buildLoadedFile(1, dates[2], dates[5]);
+    final LoadedFile file1 = buildLoadedFile(1, dates[2], dates[5]);
     filterManager.refreshFiltersDirectly(
         Arrays.asList(file1), Arrays.asList(SAMPLE_BENE), dates[8]);
 
     // Test the new filter
     Assert.assertEquals(1, filterManager.getFilters().size());
-    DateRangeParam during1 = new DateRangeParam(dates[2], dates[3]);
+    final DateRangeParam during1 = new DateRangeParam(dates[2], dates[3]);
     Assert.assertFalse(
         "Expected valid bene and range to not be empty",
         filterManager.isResultSetEmpty(SAMPLE_BENE, during1));
     Assert.assertTrue(
         "Expected invalid bene to be empty", filterManager.isResultSetEmpty(INVALID_BENE, during1));
-    DateRangeParam after1 = new DateRangeParam(dates[6], dates[7]);
+    final DateRangeParam after1 = new DateRangeParam(dates[6], dates[7]);
     Assert.assertTrue(
         "Expected valid bene and range to not be empty",
         filterManager.isResultSetEmpty(SAMPLE_BENE, after1));
@@ -228,9 +228,9 @@ public final class LoadedFilterManagerTest {
 
   public LoadedFile buildLoadedFile(long loadedFileId, Date firstUpdated, Date lastUpdated)
       throws IOException {
-    ArrayList<String> benes = new ArrayList<String>();
+    final ArrayList<String> benes = new ArrayList<String>();
     benes.add(SAMPLE_BENE);
-    byte[] beneBytes = FilterSerialization.serializeBeneficiaries(benes);
+    final byte[] beneBytes = FilterSerialization.serializeBeneficiaries(benes);
     return new LoadedFile(
         loadedFileId,
         RifFileType.BENEFICIARY.toString(),

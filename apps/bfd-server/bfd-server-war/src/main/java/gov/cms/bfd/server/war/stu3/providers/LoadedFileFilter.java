@@ -11,10 +11,10 @@ import java.util.Date;
  * href="https://en.wikipedia.org/wiki/Bloom_filter">Bloom Filters</a>) which are space efficient.
  */
 public class LoadedFileFilter {
-  private long loadedFileId;
-  private Date firstUpdated;
-  private Date lastUpdated;
-  private BloomFilter<String> updatedBeneficiaries;
+  private final long loadedFileId;
+  private final Date firstUpdated;
+  private final Date lastUpdated;
+  private final BloomFilter<String> updatedBeneficiaries;
 
   /**
    * Build a filter for a LoadedFile
@@ -44,7 +44,7 @@ public class LoadedFileFilter {
   public boolean matchesDateRange(DateRangeParam dateRangeParam) {
     if (dateRangeParam == null) return true;
 
-    DateParam upperBound = dateRangeParam.getUpperBound();
+    final DateParam upperBound = dateRangeParam.getUpperBound();
     if (upperBound != null) {
       switch (upperBound.getPrefix()) {
         case LESSTHAN:
@@ -62,7 +62,7 @@ public class LoadedFileFilter {
       }
     }
 
-    DateParam lowerBound = dateRangeParam.getLowerBound();
+    final DateParam lowerBound = dateRangeParam.getLowerBound();
     if (lowerBound != null) {
       switch (lowerBound.getPrefix()) {
         case GREATERTHAN:
@@ -98,19 +98,9 @@ public class LoadedFileFilter {
     return loadedFileId;
   }
 
-  /** @param loadedFileId the fileId to set */
-  public void setLoadedFileId(long loadedFileId) {
-    this.loadedFileId = loadedFileId;
-  }
-
   /** @return the firstUpdated */
   public Date getFirstUpdated() {
     return firstUpdated;
-  }
-
-  /** @param firstUpdated the firstUpdated to set */
-  public void setFirstUpdated(Date firstUpdated) {
-    this.firstUpdated = firstUpdated;
   }
 
   /** @return the lastUpdated */
@@ -118,18 +108,8 @@ public class LoadedFileFilter {
     return lastUpdated;
   }
 
-  /** @param lastUpdated the lastUpdated to set */
-  public void setLastUpdated(Date lastUpdated) {
-    this.lastUpdated = lastUpdated;
-  }
-
   /** @return the updatedBeneficiaries */
   public BloomFilter<String> getUpdatedBeneficiaries() {
     return updatedBeneficiaries;
-  }
-
-  /** @param updatedBeneficiaries the updatedBeneficiaries to set */
-  public void setUpdatedBeneficiaries(BloomFilter<String> updatedBeneficiaries) {
-    this.updatedBeneficiaries = updatedBeneficiaries;
   }
 }

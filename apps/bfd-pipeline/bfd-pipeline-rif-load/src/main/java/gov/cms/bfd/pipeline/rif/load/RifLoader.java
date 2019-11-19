@@ -304,7 +304,7 @@ public final class RifLoader implements AutoCloseable {
             });
 
     // Track the associated beneficiaries
-    LoadedFileBuilder loadedFileBuilder = new LoadedFileBuilder(dataToLoad.getSourceEvent());
+    final LoadedFileBuilder loadedFileBuilder = new LoadedFileBuilder(dataToLoad.getSourceEvent());
 
     /*
      * Design history note: Initially, this function just returned a stream

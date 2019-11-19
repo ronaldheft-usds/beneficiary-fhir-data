@@ -21,9 +21,9 @@ public class QueryUtils {
   @SuppressWarnings({"rawtypes", "unchecked"})
   static Predicate createLastUpdatedPredicate(
       CriteriaBuilder criteriaBuilder, Root root, DateRangeParam range) {
-    Date lowerBound = range.getLowerBoundAsInstant();
-    Date upperBound = range.getUpperBoundAsInstant();
-    Path lastUpdatedPath = root.get("lastUpdated");
+    final Date lowerBound = range.getLowerBoundAsInstant();
+    final Date upperBound = range.getUpperBoundAsInstant();
+    final Path lastUpdatedPath = root.get("lastUpdated");
 
     Predicate lowerBoundPredicate = null;
     if (lowerBound != null) {
@@ -94,8 +94,8 @@ public class QueryUtils {
     if (range == null || range.isEmpty()) {
       return true;
     }
-    Date lowerBound = range.getLowerBoundAsInstant();
-    Date upperBound = range.getUpperBoundAsInstant();
+    final Date lowerBound = range.getLowerBoundAsInstant();
+    final Date upperBound = range.getUpperBoundAsInstant();
 
     if (lowerBound != null) {
       switch (range.getLowerBound().getPrefix()) {

@@ -13,7 +13,6 @@ import org.hibernate.annotations.Type;
 @Entity
 @Table(name = "`LoadedFiles`")
 public class LoadedFile {
-
   @Id
   @Column(name = "`loadedFileId`", nullable = false)
   @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "loadedFiles_loadedFileId_seq")

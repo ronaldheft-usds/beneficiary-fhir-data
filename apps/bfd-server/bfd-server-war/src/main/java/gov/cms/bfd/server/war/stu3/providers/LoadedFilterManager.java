@@ -58,14 +58,14 @@ public class LoadedFilterManager {
     // The manager doesn't know the state of DB after the refreshTime. So, we can
     // immediately reject ranges after the refreshTime. As well as the intervals before the oldest
     // filter.
-    Date upperBound = lastUpdatedRange.getUpperBoundAsInstant();
+    final Date upperBound = lastUpdatedRange.getUpperBoundAsInstant();
     if (upperBound == null || upperBound.getTime() > getRefreshTime().getTime()) return false;
-    LoadedFileFilter oldestFilter = getFilters().get(getFilters().size() - 1);
-    Date lowerBound = lastUpdatedRange.getLowerBoundAsInstant();
+    final LoadedFileFilter oldestFilter = getFilters().get(getFilters().size() - 1);
+    final Date lowerBound = lastUpdatedRange.getLowerBoundAsInstant();
     if (lowerBound == null || lowerBound.getTime() < oldestFilter.getFirstUpdated().getTime())
       return false;
 
-    List<LoadedFileFilter> filters = getFilters();
+    final List<LoadedFileFilter> filters = getFilters();
     for (LoadedFileFilter filter : filters) {
       if (filter.matchesDateRange(lastUpdatedRange)) {
         if (filter.mightContain(beneficiaryId)) {
@@ -98,7 +98,7 @@ public class LoadedFilterManager {
      * process will be quick when no loaded file changes are found.
      */
     entityManager.clear(); // Make sure we go back to the DB, not the persistence context
-    Iterator loadedFilesIterator =
+    final Iterator loadedFilesIterator =
         entityManager
             .createQuery(
                 "select f.loadedFileId, f.rifType, f.count, f.filterType, f.firstUpdated, f.lastUpdated "
@@ -118,7 +118,7 @@ public class LoadedFilterManager {
     try {
       while (loadedFilesIterator.hasNext()) {
         Object[] row = (Object[]) loadedFilesIterator.next();
-        LoadedFile loadedFile =
+        final LoadedFile loadedFile =
             new LoadedFile(
                 (long) row[0], // loadedFileId
                 (String) row[1], // rifType
@@ -132,7 +132,7 @@ public class LoadedFilterManager {
           LoadedFileFilter newFilter = buildFilter(loadedFile);
           updateFilters(newFilter);
         }
-        Date lastUpdated = (Date) row[5];
+        final Date lastUpdated = (Date) row[5];
         if (refreshTime.before(lastUpdated)) {
           refreshTime = lastUpdated;
         }
@@ -160,7 +160,7 @@ public class LoadedFilterManager {
     // Update the filters
     for (LoadedFile loadedFile : loadedFiles) {
       if (!hasFilterFor(loadedFile)) {
-        LoadedFileFilter newFilter = buildFilterDirectly(loadedFile, beneficiaries);
+        final LoadedFileFilter newFilter = buildFilterDirectly(loadedFile, beneficiaries);
         updateFilters(newFilter);
       }
     }
@@ -206,17 +206,18 @@ public class LoadedFilterManager {
         loadedFile.getLoadedFileId(),
         loadedFile.getCount());
 
-    byte[] filterBytes =
+    final byte[] filterBytes =
         entityManager
             .createQuery(
                 "select f.filterBytes from LoadedFile f where f.loadedFileId = :loadedFileId",
                 byte[].class)
             .setParameter("loadedFileId", loadedFile.getLoadedFileId())
             .getSingleResult();
-    ArrayList<String> beneficiaries = FilterSerialization.deserializeBeneficiaries(filterBytes);
+    final ArrayList<String> beneficiaries =
+        FilterSerialization.deserializeBeneficiaries(filterBytes);
 
-    Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
-    BloomFilter<String> bloomFilter = BloomFilter.create(funnel, loadedFile.getCount());
+    final Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
+    final BloomFilter<String> bloomFilter = BloomFilter.create(funnel, loadedFile.getCount());
     for (String beneficiary : beneficiaries) {
       bloomFilter.put(beneficiary);
     }
@@ -237,8 +238,8 @@ public class LoadedFilterManager {
    * @return a new filter
    */
   private LoadedFileFilter buildFilterDirectly(LoadedFile loadedFile, List<String> beneficiaries) {
-    Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
-    BloomFilter<String> bloomFilter = BloomFilter.create(funnel, beneficiaries.size());
+    final Funnel<CharSequence> funnel = Funnels.stringFunnel(StandardCharsets.UTF_8);
+    final BloomFilter<String> bloomFilter = BloomFilter.create(funnel, beneficiaries.size());
     for (String beneId : beneficiaries) {
       bloomFilter.put(beneId);
     }

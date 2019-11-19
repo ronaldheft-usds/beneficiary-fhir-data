@@ -9,7 +9,7 @@ import java.util.ArrayList;
 
 /** Class to serialize and deserialize a filter. */
 public class FilterSerialization {
-  public static String ARRAY_LIST_SERIALIZATION = "ArrayList";
+  public static final String ARRAY_LIST_SERIALIZATION = "ArrayList";
 
   public static byte[] serializeBeneficiaries(ArrayList<String> beneficiaries) throws IOException {
     try (final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();

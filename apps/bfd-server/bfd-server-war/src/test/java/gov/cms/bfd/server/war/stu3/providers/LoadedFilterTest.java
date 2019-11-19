@@ -17,9 +17,9 @@ public final class LoadedFilterTest {
 
   @Test
   public void testMatchesDateRange() {
-    BloomFilter<String> emptyFilter =
+    final BloomFilter<String> emptyFilter =
         BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), 10);
-    LoadedFileFilter filter1 =
+    final LoadedFileFilter filter1 =
         new LoadedFileFilter(
             1,
             Date.from(Instant.now().minusSeconds(10)),
@@ -32,7 +32,7 @@ public final class LoadedFilterTest {
         "Expected empty range to be treated as an infinite range",
         filter1.matchesDateRange(new DateRangeParam()));
 
-    DateRangeParam sinceYesterday =
+    final DateRangeParam sinceYesterday =
         new DateRangeParam(
             new DateParam()
                 .setPrefix(ParamPrefixEnum.GREATERTHAN)
@@ -40,7 +40,7 @@ public final class LoadedFilterTest {
     Assert.assertTrue(
         "Expected since yesterday period to cover", filter1.matchesDateRange(sinceYesterday));
 
-    DateRangeParam beforeNow =
+    final DateRangeParam beforeNow =
         new DateRangeParam(
             new DateParam()
                 .setPrefix(ParamPrefixEnum.LESSTHAN_OR_EQUALS)
@@ -48,7 +48,7 @@ public final class LoadedFilterTest {
     Assert.assertTrue(
         "Expected since yesterday period to cover", filter1.matchesDateRange(beforeNow));
 
-    DateRangeParam beforeYesterday =
+    final DateRangeParam beforeYesterday =
         new DateRangeParam(
             new DateParam()
                 .setPrefix(ParamPrefixEnum.LESSTHAN)
@@ -56,7 +56,7 @@ public final class LoadedFilterTest {
     Assert.assertFalse(
         "Expected before yesterday period to not match", filter1.matchesDateRange(beforeYesterday));
 
-    DateRangeParam afterNow =
+    final DateRangeParam afterNow =
         new DateRangeParam(
             new DateParam()
                 .setPrefix(ParamPrefixEnum.GREATERTHAN_OR_EQUALS)
@@ -64,7 +64,7 @@ public final class LoadedFilterTest {
     Assert.assertFalse(
         "Expected after now period to not match", filter1.matchesDateRange(afterNow));
 
-    DateRangeParam beforeSevenSeconds =
+    final DateRangeParam beforeSevenSeconds =
         new DateRangeParam(
             new DateParam()
                 .setPrefix(ParamPrefixEnum.LESSTHAN)
@@ -72,7 +72,7 @@ public final class LoadedFilterTest {
     Assert.assertTrue(
         "Expected partial match to match", filter1.matchesDateRange(beforeSevenSeconds));
 
-    DateRangeParam afterSevenSeconds =
+    final DateRangeParam afterSevenSeconds =
         new DateRangeParam(
             new DateParam()
                 .setPrefix(ParamPrefixEnum.GREATERTHAN)
@@ -80,7 +80,7 @@ public final class LoadedFilterTest {
     Assert.assertTrue(
         "Expected partial match to match", filter1.matchesDateRange(afterSevenSeconds));
 
-    DateRangeParam sevenSeconds =
+    final DateRangeParam sevenSeconds =
         new DateRangeParam(
             Date.from(Instant.now().minusSeconds(8)), Date.from(Instant.now().minusSeconds(7)));
     Assert.assertTrue("Expected partial match to match", filter1.matchesDateRange(sevenSeconds));
@@ -89,13 +89,13 @@ public final class LoadedFilterTest {
   @Test
   public void testMightContain() {
     // Very small test on the Guava implementation of BloomFilters. Assume this package works.
-    BloomFilter<String> smallFilter =
+    final BloomFilter<String> smallFilter =
         BloomFilter.create(Funnels.stringFunnel(StandardCharsets.UTF_8), 10);
     smallFilter.put("1");
     smallFilter.put("100");
     smallFilter.put("101");
 
-    LoadedFileFilter filter1 =
+    final LoadedFileFilter filter1 =
         new LoadedFileFilter(
             1,
             Date.from(Instant.now().minusSeconds(10)),
