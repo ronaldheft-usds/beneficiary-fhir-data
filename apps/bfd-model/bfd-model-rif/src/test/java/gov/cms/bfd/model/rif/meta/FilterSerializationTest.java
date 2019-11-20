@@ -6,7 +6,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Random;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +41,6 @@ public class FilterSerializationTest {
     LOGGER.info("Basic serialization size: {} bytes", bytes.length);
   }
 
-  @Ignore // Doesn't work
   @Test
   public void gzipSerialization() throws IOException, ClassNotFoundException {
     final String[] testBenes = buildTestIds();
@@ -58,7 +56,7 @@ public class FilterSerializationTest {
   }
 
   static String[] buildTestIds() {
-    final String[] array = new String[100000];
+    final String[] array = new String[1000000];
     final Random random = new Random();
     for (int i = 0; i < array.length; i++) {
       long beneId = random.nextLong() / 10000000; // Reduce the range of values

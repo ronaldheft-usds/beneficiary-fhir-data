@@ -381,6 +381,7 @@ public final class RifLoaderIT {
     try {
       return FilterSerialization.deserialize(file.getFilterType(), file.getFilterBytes());
     } catch (Exception ex) {
+      LOGGER.error("FilterSerialization Exception {}", ex.getMessage());
       Assert.fail("Deserialize of loaded beneficiaries failed");
       return null;
     }
