@@ -16,19 +16,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-
 import org.xerial.snappy.SnappyInputStream;
 import org.xerial.snappy.SnappyOutputStream;
 
-/** 
+/**
  * Class to serialize and deserialize a filter. A few are implmented for comparison purposes:
- * 
- * Dev Note: Using the benchmark of 1M random beneficiary ids:
- *  
- * Basic serialization:  135 millis    13379520 bytes 
- * Snappy serialization: 356 millis    11913055 bytes
- * GZip serialization:  1296 millis     6427963 bytes
- * Java serialization:   652 millis    15379436 bytes
+ *
+ * <p>Dev Note: Using the benchmark of 1M random beneficiary ids:
+ *
+ * <p>Basic serialization: 135 millis 13379520 bytes
+ *
+ * <p>Snappy serialization: 356 millis 11913055 bytes
+ *
+ * <p>GZip serialization: 1296 millis 6427963 bytes
+ *
+ * <p>Java serialization: 652 millis 15379436 bytes
  */
 public class FilterSerialization {
   public static final String JAVA_ARRAYLIST_SERIALIZATION = "ArrayList";
@@ -46,7 +48,7 @@ public class FilterSerialization {
    */
   public static byte[] serialize(String[] beneficiaries) throws IOException {
     switch (DEFAULT_SERIALIZATION) {
-      case JAVA_ARRAYLIST_SERIALIZATION: 
+      case JAVA_ARRAYLIST_SERIALIZATION:
         return serializeJava(beneficiaries);
       case BASIC_SERIALIZATION:
         return serializeBasic(beneficiaries);
