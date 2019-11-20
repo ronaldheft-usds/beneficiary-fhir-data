@@ -38,6 +38,8 @@ alter table "SNFClaims" add column lastUpdated timestamp with time zone;
 -- One row for each RIF file loaded. 
 -- The timestamps represent start and end time of processing the RIF file. 
 -- Count is the number of records in the RIF file. 
+-- The filterBytes is an array of all beneficiariesIds in the RIF file.
+-- Dev Note: The byte array format was faster (2x) than an array type
 -- The filterType allows us to upgrade the filter type in the future.
 -- 
 create table "LoadedFiles" (
