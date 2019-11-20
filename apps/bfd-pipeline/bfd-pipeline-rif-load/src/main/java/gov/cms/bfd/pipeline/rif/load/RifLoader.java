@@ -607,12 +607,22 @@ public final class RifLoader implements AutoCloseable {
         Date oldDate = Date.from(Instant.now().minus(MAX_FILE_AGE, ChronoUnit.DAYS));
         txn = em.getTransaction();
         txn.begin();
-        int deleted =
-            em.createQuery("delete from LoadedFile as f where f.lastUpdated < :oldDate")
+        long oldCount =
+            em.createQuery(
+                    "select count(f) from LoadedFile as f where f.lastUpdated < :oldDate",
+                    Long.class)
                 .setParameter("oldDate", oldDate)
-                .executeUpdate();
-        txn.commit();
-        LOGGER.info("Deleting {} LoadedFiles", deleted);
+                .getSingleResult();
+        if (oldCount > 0) {
+          int deleted =
+              em.createQuery("delete from LoadedFile as f where f.lastUpdated < :oldDate")
+                  .setParameter("oldDate", oldDate)
+                  .executeUpdate();
+          LOGGER.info("Deleting {} LoadedFiles", deleted);
+          txn.commit();
+        } else {
+          txn.rollback();
+        }
       } finally {
         if (em != null && em.isOpen()) {
           if (txn != null && txn.isActive()) {
