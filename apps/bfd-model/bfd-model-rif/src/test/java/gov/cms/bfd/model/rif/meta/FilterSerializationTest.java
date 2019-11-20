@@ -55,6 +55,20 @@ public class FilterSerializationTest {
     LOGGER.info("GZip serialization size: {} bytes", bytes.length);
   }
 
+  @Test
+  public void snappySerialization() throws IOException, ClassNotFoundException {
+    final String[] testBenes = buildTestIds();
+    final Instant start = Instant.now();
+    final byte[] bytes = FilterSerialization.serializeSnappy(testBenes);
+    final String[] outBenes = FilterSerialization.deserializeSnappy(bytes);
+    final Instant end = Instant.now();
+    Assert.assertEquals("Expected to have same size", testBenes.length, outBenes.length);
+    Assert.assertEquals("Expected to have id match", testBenes[10], outBenes[10]);
+    Assert.assertEquals("Expected to have id match", testBenes[10000], outBenes[10000]);
+    LOGGER.info("Snappy serialization time: {} millis", Duration.between(start, end).toMillis());
+    LOGGER.info("Snappy serialization size: {} bytes", bytes.length);
+  }
+
   static String[] buildTestIds() {
     final String[] array = new String[1000000];
     final Random random = new Random();

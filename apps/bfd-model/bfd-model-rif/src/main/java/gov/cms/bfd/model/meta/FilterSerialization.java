@@ -17,11 +17,24 @@ import java.util.List;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
-/** Class to serialize and deserialize a filter. A few are implmented for comparison purposes. */
+import org.xerial.snappy.SnappyInputStream;
+import org.xerial.snappy.SnappyOutputStream;
+
+/** 
+ * Class to serialize and deserialize a filter. A few are implmented for comparison purposes:
+ * 
+ * Dev Note: Using the benchmark of 1M random beneficiary ids:
+ *  
+ * Basic serialization:  135 millis    13379520 bytes 
+ * Snappy serialization: 356 millis    11913055 bytes
+ * GZip serialization:  1296 millis     6427963 bytes
+ * Java serialization:   652 millis    15379436 bytes
+ */
 public class FilterSerialization {
   public static final String JAVA_ARRAYLIST_SERIALIZATION = "ArrayList";
   public static final String BASIC_SERIALIZATION = "Basic";
   public static final String GZIP_SERIALIZATION = "GZip";
+  public static final String SNAPPY_SERIALIZATION = "Snappy";
   public static final String DEFAULT_SERIALIZATION = GZIP_SERIALIZATION;
 
   /**
@@ -33,12 +46,14 @@ public class FilterSerialization {
    */
   public static byte[] serialize(String[] beneficiaries) throws IOException {
     switch (DEFAULT_SERIALIZATION) {
-      case JAVA_ARRAYLIST_SERIALIZATION:
+      case JAVA_ARRAYLIST_SERIALIZATION: 
         return serializeJava(beneficiaries);
       case BASIC_SERIALIZATION:
         return serializeBasic(beneficiaries);
       case GZIP_SERIALIZATION:
         return serializeGZip(beneficiaries);
+      case SNAPPY_SERIALIZATION:
+        return serializeSnappy(beneficiaries);
       default:
         throw new IOException("Invalid filterType");
     }
@@ -68,6 +83,8 @@ public class FilterSerialization {
         return deserializeBasic(filterBytes);
       case GZIP_SERIALIZATION:
         return deserializeGZip(filterBytes);
+      case SNAPPY_SERIALIZATION:
+        return deserializeSnappy(filterBytes);
       default:
         throw new IOException("Invalid filterType");
     }
@@ -165,6 +182,36 @@ public class FilterSerialization {
     try (final ByteArrayInputStream byteStream = new ByteArrayInputStream(filterBytes);
         final GZIPInputStream gzipStream = new GZIPInputStream(byteStream)) {
       return readInBasicFormat(gzipStream);
+    }
+  }
+
+  /**
+   * Serialize using basic serialization plus Snappy.
+   *
+   * @param beneficiaries to serialize
+   * @return serialized bytes
+   * @throws IOException
+   */
+  public static byte[] serializeSnappy(String[] beneficiaries) throws IOException {
+    int capacity = beneficiaries.length * 15;
+    try (final ByteArrayOutputStream byteStream = new ByteArrayOutputStream(capacity);
+        final SnappyOutputStream snappyStream = new SnappyOutputStream(byteStream)) {
+      writeInBasicFormat(snappyStream, beneficiaries);
+      return byteStream.toByteArray();
+    }
+  }
+
+  /**
+   * Deserialize using a basic scheme plus Snappy.
+   *
+   * @param filterBytes to decrypt
+   * @return beneficiary ids
+   * @throws IOException if there was some serialization error
+   */
+  public static String[] deserializeSnappy(byte[] filterBytes) throws IOException {
+    try (final ByteArrayInputStream byteStream = new ByteArrayInputStream(filterBytes);
+        final SnappyInputStream snappyStream = new SnappyInputStream(byteStream)) {
+      return readInBasicFormat(snappyStream);
     }
   }
 
