@@ -62,6 +62,7 @@ public class LoadedFilterManager {
     if (lowerBound == null || lowerBound.getTime() < oldestFilter.getFirstUpdated().getTime())
       return false;
 
+    // Within a interval that have filters for
     final List<LoadedFileFilter> filters = getFilters();
     for (LoadedFileFilter filter : filters) {
       if (filter.matchesDateRange(lastUpdatedRange)) {
@@ -92,29 +93,36 @@ public class LoadedFilterManager {
      * Dev note: the pipeline has a process to trim the files list. Nevertheless, building a set of
      * bloom filters may take a while. This method is expected to be called on it's own thread, so
      * this filter building process can happen without interferring with serving. Also, the refresh
-     * process will be quick when no loaded file changes are found.
+     * process will be quick when no loaded file changes are found. Care is taken to ensure that
+     * pipeline can write safely while this refresh is happening.
      */
-    entityManager.clear(); // Make sure we go back to the DB, not the persistence context
-    final Iterator loadedFilesIterator =
-        entityManager
-            .createQuery(
-                "select f.loadedFileId, f.rifType, f.count, f.filterType, f.firstUpdated, f.lastUpdated "
-                    + "from LoadedFile as f "
-                    + "order by f.lastUpdated desc")
-            .getResultList()
-            .iterator();
-    /**
-     * Dev note: refreshTime should be calculated on the pipeline's clock as other dates are. There
-     * is the possiblity of clock skew and db replication delay between the pipeline and the data
-     * server. Here we add subract a few seconds a safety margin for the possibility of these
-     * effects. There methods to do a better estimate, but they are not worth the effort.
-     */
-    refreshTime = Date.from(Instant.now().minusSeconds(delaySeconds));
 
-    // Update the filters
+    // Make sure we go back to the DB, not the cache, because of the pipeline may write to DB
+    entityManager.clear();
+
     try {
+      final Iterator<Object[]> loadedFilesIterator =
+          entityManager
+              .createQuery(
+                  "select f.loadedFileId, f.rifType, f.count, f.filterType, f.firstUpdated, f.lastUpdated "
+                      + "from LoadedFile as f "
+                      + "order by f.lastUpdated desc",
+                  Object[].class)
+              .getResultList()
+              .iterator();
+      /**
+       * Dev note: refreshTime should be calculated on the pipeline's clock as other dates, since
+       * there is the possiblity of clock skew and db replication delay between the pipeline and the
+       * data server. However, this code is running on the data server, so we have to estimate the
+       * refesh time. To do add subract a few seconds a safety margin for the possibility of these
+       * effects. There methods to do a better estimate, but they are not worth the effort because
+       * getting the delay estimate wrong will never affect the correctness of the BFD's results.
+       */
+      refreshTime = Date.from(Instant.now().minusSeconds(delaySeconds));
+
+      // Update the filters
       while (loadedFilesIterator.hasNext()) {
-        Object[] row = (Object[]) loadedFilesIterator.next();
+        Object[] row = loadedFilesIterator.next();
         final LoadedFile loadedFile =
             new LoadedFile(
                 (long) row[0], // loadedFileId
@@ -126,7 +134,8 @@ public class LoadedFilterManager {
                 (Date) row[5] // lastUpdated
                 );
         if (!hasFilterFor(loadedFile)) {
-          LoadedFileFilter newFilter = buildFilter(loadedFile);
+          // This may take few seconds for large 1M > filters
+          LoadedFileFilter newFilter = buildFilter(loadedFile.getLoadedFileId());
           updateFilters(newFilter);
         }
         final Date lastUpdated = (Date) row[5];
@@ -194,23 +203,19 @@ public class LoadedFilterManager {
    * Build a filter for this loaded file. Execution time is O(n) of the number of beneficiaries
    * associated with this loaded file.
    *
-   * @param loadedFile to build a filter
+   * @param fileId to fetch
    * @return a new filter
    */
-  private LoadedFileFilter buildFilter(LoadedFile loadedFile)
-      throws IOException, ClassNotFoundException {
-    LOGGER.info(
-        "Building loaded file filter for loaded file {} with {} beneficiaries",
-        loadedFile.getLoadedFileId(),
-        loadedFile.getCount());
+  private LoadedFileFilter buildFilter(long fileId) throws IOException, ClassNotFoundException {
 
-    final byte[] filterBytes =
+    final LoadedFile loadedFile =
         entityManager
             .createQuery(
-                "select f.filterBytes from LoadedFile f where f.loadedFileId = :loadedFileId",
-                byte[].class)
-            .setParameter("loadedFileId", loadedFile.getLoadedFileId())
+                "select f from LoadedFile f where f.loadedFileId = :loadedFileId", LoadedFile.class)
+            .setParameter("loadedFileId", fileId)
             .getSingleResult();
+
+    final byte[] filterBytes = loadedFile.getFilterBytes();
     final String filterType = loadedFile.getFilterType();
     final String[] beneficiaries = FilterSerialization.deserialize(filterType, filterBytes);
 
@@ -219,7 +224,7 @@ public class LoadedFilterManager {
       bloomFilter.put(beneficiary);
     }
 
-    LOGGER.info("Finished building filter for file {}", loadedFile.getLoadedFileId());
+    LOGGER.info("Built a filter for {} with {} elements", fileId, loadedFile.getCount());
     return new LoadedFileFilter(
         loadedFile.getLoadedFileId(),
         loadedFile.getFirstUpdated(),

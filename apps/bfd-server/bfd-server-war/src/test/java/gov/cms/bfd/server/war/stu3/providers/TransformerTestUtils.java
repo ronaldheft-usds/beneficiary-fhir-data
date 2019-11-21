@@ -1805,8 +1805,10 @@ final class TransformerTestUtils {
       throws FHIRException {
 
     if (revenueCenterDate.isPresent()) {
+      // Convert both LocalDate and Date type to millisconds to compare.
       Assert.assertEquals(
-          java.sql.Date.valueOf(revenueCenterDate.get()), item.getServicedDateType().getValue());
+          java.sql.Date.valueOf(revenueCenterDate.get()).getTime(),
+          item.getServicedDateType().getValue().getTime());
     }
 
     assertAdjudicationAmountEquals(
