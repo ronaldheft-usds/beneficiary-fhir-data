@@ -43,47 +43,28 @@ Early feedback from both BCDA and DPC customers have nearly unanimously pointed 
 This proposal adds 3 changes to the BFD API that are needed for downstream partners to implement the `_since` parameter. 
 
 1. The `lastUpdated` metadata field of EOB, Patient, and Coverage FHIR resources contains the time they were written to the master DB by the ETL process. 
-2. The search operation of the EOB, Patient, and Coverage resources support `_lastUpdated` query parameter. When specified, the search operation filters resources against the passed in timestamp. 
-3. The API adds a feed containing the start and finish times of the ETL job into BFD and a list of beneficiaries updated in the ETL. This feed enables BFD partners to correctly and efficiently implement the `_since` parameter. 
-
-Using the new information provided by the BFD, a partner can implement `_since` exports. To improve the efficiency of the export operation and its performance, partners must avoid calling the BFD if a particular beneficiary doesn't have an updated resource (see [Since Implementors Details](#since-implementors-details)). The following sequence diagram shows how this interaction should work. 
-
-![Bulk ](https://www.websequencediagrams.com/files/render?link=zfMUJyQaf18DNUb6IQoPN2EBeq9tMctYXXupx6T5Co8gB3t9ysmhat0ToalxZ6p2)
+2. The search operation of the EOB, Patient, and Coverage resources support a `_lastUpdated` query parameter. When specified, the search filters resources against the passed in date range. The capabilities statement includes the `_lastUpdated` as a search parameter. 
+3. The BFD server adds optimizations on EOB searches with `_lastUpdated` for the case where the result set is empty. These searches should return results in a similar time to the time taken by a metadata query. 
 
 ### BFD API Details
 
-All the proposed API changes follow the FHIR specification. The first improvement is to add the `lastUpdated` to the metadata field of a resource. The current implementation returns the time the that the request was made. The proposal alters this field to be the timestamp that the ETL process wrote to the master DB. Like all instant timestamps, this timestamp must include timezone \[[4](#ref4)\]. 
+All the proposed API changes follow the FHIR specification. 
 
-The second change is to support the `_lastUpdated` query parameter for resource searches \[[5](#ref5)\]. FHIR specifies a set of comparison operators to go along with this filter. Although bulk exporters will only use the `gt` or greater-than operator, a complete set will be useful for other use-cases. 
+The first improvement is to add the `lastUpdated` field to the metadata object of a resource. The current implementation does not return any `lastUpdated` field. The proposal adds this field with the timestamp that the ETL process wrote to the master DB. Like all FHIR date fields, this timestamp must include the server's timezone \[[4](#ref4)\]. Resources based on records loaded before this RFC is implemented continue to not have `lastUpdated` fields. 
 
-### BFD Feed Details
+The second change is to support the `_lastUpdated` query parameter for resource searches per the FHIR specification \[[5](#ref5)\]. FHIR specifies a set of comparison operators to go along with this filter. BFD supports the `eq`, `lt`, `le`, `gt` and `ge` operators. Two `_lastUpdated` parameters can be specified to form the upper and lower bounds of a time interval. Searches with a `_lastUpdated` parameter will not return resources without a `lastUpdated` field. To retrive these resources, a query without `_lastUpdated` must be made. 
 
-The ETL server will write to a S3 bucket a feed of NDJSON records. Each record contains fields for the ETL job's id, status, start and end timestamps. The job id is an integer. The timestamps follows the FHIR specification for instant formating. The record also contains a pointer to a list of beneficiaries which were udpated in the ETL job. The list is a UTF-8 encoded comma seperated list of MBIs. The MBI list will be written in a sorted in order. 
+### Bulk Export Implementors Details
 
-```
-{
-    "id": 100,
-    "status": "done",
-    "start": "2019-02-07T12:28:17-05:00",
-    "end": "2019-02-07T13:28:17-05:00" 
-    "beneficiaries": "s3://bfd-prod-etl-feed/bene20191101.mbi"
-}
-```
-The S3 bucket with the feed and the MBI lists are private, with only access to BFD partners. S3 cross-account access policies will be used to lock down access. 
+Implementing `_since` support should be straight forward for BFD's partners that implement the FHIR Bulk Export specification. The following sequence diagram shows how  interaction should work. 
 
-### Since Implementors Details
+![Bulk ](https://www.websequencediagrams.com/files/render?link=zfMUJyQaf18DNUb6IQoPN2EBeq9tMctYXXupx6T5Co8gB3t9ysmhat0ToalxZ6p2)
 
-To add since support, downstream BFD partners must:
-1. Update their export operation end-point to support '_since.' 
-2. At the start of a job, read the ETL feed from S3. From this feed retrieve: 
-   1. The start and end time of the last ETL job
-   2. The list of beneficiaries updated in the last ETL job. 
-3. Based on the timestamp passed in the `_since` parameter, optimize the queries to BFD in the following ways: 
-   1. If BFD did not run ETL jobs since the passed timestamp, do not call the BFD and return an empty result set. 
-   2. If BFD ran one ETL job since the passed-in timestamp, call BFD only for those beneficiaries included in the beneficiary list.
-   3. If BFD ran multiple jobs since the passed-in timestamp, it is acceptable not to optimize BFD calls and call the BFD for all beneficiaries in the export job.  
+The partner 
 
-The scalability of BFD could be a limiting factor in the expansion of DPC and BCDA to more customers. Every week less than 5% of beneficiaries have a new claim. By only calling BFD when a beneficiary has an updated claim, the partner is effectively increasing the capacity of BFD.
+### BFD Implementation Details
+
+![Filters](https://www.lucidchart.com/publicSegments/view/e3f43d21-5fdc-403c-b366-eec09e7db10d/image.png)
 
 ### ETL Corner Case
 
@@ -95,25 +76,17 @@ To avoid this delay, a bulk-export implementor may take an optimistic approach b
 
 The resources returned by a group export operation is the current roster of the group at the time of an export call. A group's roster may change between successive export calls. At this time, the importer does not have any data for the added beneficiaries. So, how should an export call with a `_since` parameter handle new beneficiaries? The FHIR specification states that export should only include data updated after the passed in `_since` parameter. However, the specification does not contemplate this use-case, nor does it offer any hint on how to correctly implement this use-case. 
 
-Since the BFD service does not track groups, the BFD partners have to work out solutions for this problem. Please see the authors for a discussion on solutions. 
+Since the BFD service does not track groups, the BFD partners have to work out solutions for this problem. The FHIR community Please see the authors for a discussion on solutions. 
 
 ### Internal Database Corner Cases
 
-Resources may have their `lastUpdated` field change when other fields have not changed. This may happen  because the BFD has its own internal representation of records and only keeps one `lastUpdated` value for these internal records. 
+FHIR Resources are projections from the BFD's internal records which are based the CCW's RIF files.  As a result, the FHIR Resources may have their `lastUpdated` field change when other fields do not change. 
 
-Records created before the since feature was implmented, do not have a defined `lastUpdated` value. In this case, the BFD will return the timestamp of the since feature's database migration, making the time that 
-the since feature was deployed the earliest `lastUpdated` value. 
-
-### Replication Lag Corner Case
-
-Because of differing replication delays between the master database and the replicas, there is the potential for race conditions between the ETL feed and the DB replicas.  The BFD ETL process avoids this problem by delaying marking a BFD ETL job complete in the ETL feed until all writes have had time to propagate. The BFD ETL process can query the replication lag directly from the Postgres DB. 
+Records created before the since feature was implmented, do not have a defined `lastUpdated` value. In this case, the BFD will return a default value. 
 
 ### Alternatives Considered
 
-1. Instead of an ETL feed served by S3, BFD could convey the ETL information in other ways. For example, BFD could add an API for this information. Given the low volume of events and the low number of subscribers, the proposal chooses the S3 approach because it requires less code, while still meeting the needs of the problem
-
-2. The ETL feed could contain more ETL metadata, such as the FHIR resource touched, the DB table updated, or the care team involved. In the end, it was decided not to put this information into the
-feed because it was not general enough or universally useful. 
+Instead of optimizing ETL feed served by S3, BFD could convey the ETL information in other ways. For example, BFD could add an API for this information. Given the low volume of events and the low number of subscribers, the proposal chooses the S3 approach because it requires less code, while still meeting the needs of the problem
 
 ## Future Possibilities
 
