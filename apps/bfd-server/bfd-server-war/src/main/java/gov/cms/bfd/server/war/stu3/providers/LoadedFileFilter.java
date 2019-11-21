@@ -13,6 +13,8 @@ import java.util.Date;
  * href="https://en.wikipedia.org/wiki/Bloom_filter">Bloom Filters</a>) which are space efficient.
  */
 public class LoadedFileFilter {
+  public static final double FALSE_POSITIVE_PERCENTAGE = 0.01;
+
   private final long loadedFileId;
   private final Date firstUpdated;
   private final Date lastUpdated;
@@ -126,6 +128,7 @@ public class LoadedFileFilter {
    * @return a new BloomFilter
    */
   public static BloomFilter<String> createFilter(int count) {
-    return BloomFilter.create(Funnels.stringFunnel(Charsets.UTF_8), count);
+    return BloomFilter.create(
+        Funnels.stringFunnel(Charsets.UTF_8), count, FALSE_POSITIVE_PERCENTAGE);
   }
 }
