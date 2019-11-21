@@ -81,7 +81,7 @@ The BFD data server uses this list of past RIF file loads and their associated b
 The filter management process works on a background thread on the data server. 
 It never interferes with the data serving process. 
 
-![Filters](https://www.lucidchart.com/publicSegments/view/e3f43d21-5fdc-403c-b366-eec09e7db10d/image.png) 
+![Filters](https://www.lucidchart.com/publicSegments/view/d8d09787-3968-43af-a974-05bd03472fdc/image.png) 
 
 The filters internally use a Bloom filter data structure. Bloom filters are very memory efficient and commonly used in databases like Postgres \[[8](#ref8)\]. In essence, the filter design takes an optimization out of the database and implements it in the data server. 
 
