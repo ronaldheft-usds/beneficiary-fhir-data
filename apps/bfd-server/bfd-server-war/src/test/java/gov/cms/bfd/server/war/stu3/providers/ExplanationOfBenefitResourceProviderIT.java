@@ -1520,7 +1520,7 @@ public final class ExplanationOfBenefitResourceProviderIT {
     // Search with lastUpdated range between yesterday and now
     int expectedCount = 3;
     Date yesterday = Date.from(Instant.now().minus(1, ChronoUnit.DAYS));
-    Date now = Date.from(Instant.now());
+    Date now = new Date();
     DateRangeParam afterYesterday = new DateRangeParam(yesterday, now);
     Bundle searchResultsAfter =
         fhirClient

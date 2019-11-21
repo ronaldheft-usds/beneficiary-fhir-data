@@ -8,7 +8,6 @@ import gov.cms.bfd.model.rif.samples.StaticRifResource;
 import gov.cms.bfd.model.rif.samples.StaticRifResourceGroup;
 import gov.cms.bfd.server.war.ServerTestUtils;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -40,10 +39,16 @@ public final class CarrierClaimTransformerTest {
             .map(r -> (CarrierClaim) r)
             .findFirst()
             .get();
-    claim.setLastUpdated(Date.from(Instant.now()));
 
-    ExplanationOfBenefit eob = CarrierClaimTransformer.transform(new MetricRegistry(), claim);
-    assertMatches(claim, eob);
+    claim.setLastUpdated(new Date());
+    ExplanationOfBenefit eobWithLastUpdated =
+        CarrierClaimTransformer.transform(new MetricRegistry(), claim);
+    assertMatches(claim, eobWithLastUpdated);
+
+    claim.setLastUpdated(null);
+    ExplanationOfBenefit eobWithoutLastUpdated =
+        CarrierClaimTransformer.transform(new MetricRegistry(), claim);
+    assertMatches(claim, eobWithoutLastUpdated);
   }
 
   /**

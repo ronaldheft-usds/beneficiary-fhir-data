@@ -66,9 +66,9 @@ public final class LoadedFilterManagerIT {
 
           // Establish a couple of times
           RifLoaderTestUtils.pauseMillis(1000);
-          final Date afterSampleA = Date.from(Instant.now());
+          final Date afterSampleA = new Date();
           RifLoaderTestUtils.pauseMillis(10);
-          final Date afterSampleAPlus = Date.from(Instant.now());
+          final Date afterSampleAPlus = new Date();
           final DateRangeParam afterSampleARange =
               new DateRangeParam(afterSampleA, afterSampleAPlus);
 
@@ -97,9 +97,9 @@ public final class LoadedFilterManagerIT {
 
           // Establish a couple of times
           RifLoaderTestUtils.pauseMillis(1000);
-          final Date afterSampleA = Date.from(Instant.now());
+          final Date afterSampleA = new Date();
           RifLoaderTestUtils.pauseMillis(10);
-          final Date afterSampleAPlus = Date.from(Instant.now());
+          final Date afterSampleAPlus = new Date();
           final DateRangeParam afterSampleARange =
               new DateRangeParam(afterSampleA, afterSampleAPlus);
 
@@ -119,7 +119,7 @@ public final class LoadedFilterManagerIT {
 
           // Load again
           RifLoaderTestUtils.pauseMillis(1000);
-          final Date afterSampleU = Date.from(Instant.now());
+          final Date afterSampleU = new Date();
           final DateRangeParam aroundSampleU = new DateRangeParam(afterSampleA, afterSampleU);
           filterManager.refreshFiltersWithDelay(0);
 

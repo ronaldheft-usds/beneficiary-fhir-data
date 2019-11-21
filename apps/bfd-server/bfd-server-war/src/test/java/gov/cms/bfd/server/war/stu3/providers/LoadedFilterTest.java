@@ -39,9 +39,7 @@ public final class LoadedFilterTest {
 
     final DateRangeParam beforeNow =
         new DateRangeParam(
-            new DateParam()
-                .setPrefix(ParamPrefixEnum.LESSTHAN_OR_EQUALS)
-                .setValue(Date.from(Instant.now())));
+            new DateParam().setPrefix(ParamPrefixEnum.LESSTHAN_OR_EQUALS).setValue(new Date()));
     Assert.assertTrue(
         "Expected since yesterday period to cover", filter1.matchesDateRange(beforeNow));
 
@@ -55,9 +53,7 @@ public final class LoadedFilterTest {
 
     final DateRangeParam afterNow =
         new DateRangeParam(
-            new DateParam()
-                .setPrefix(ParamPrefixEnum.GREATERTHAN_OR_EQUALS)
-                .setValue(Date.from(Instant.now())));
+            new DateParam().setPrefix(ParamPrefixEnum.GREATERTHAN_OR_EQUALS).setValue(new Date()));
     Assert.assertFalse(
         "Expected after now period to not match", filter1.matchesDateRange(afterNow));
 

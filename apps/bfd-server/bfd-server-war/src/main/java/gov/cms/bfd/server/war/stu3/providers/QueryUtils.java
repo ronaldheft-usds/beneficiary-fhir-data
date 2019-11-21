@@ -32,6 +32,8 @@ public class QueryUtils {
           lowerBoundPredicate = criteriaBuilder.greaterThan(lastUpdatedPath, lowerBound);
           break;
         case EQUAL:
+          lowerBoundPredicate = criteriaBuilder.greaterThanOrEqualTo(lastUpdatedPath, lowerBound);
+          break;
         case GREATERTHAN_OR_EQUALS:
           lowerBoundPredicate = criteriaBuilder.greaterThanOrEqualTo(lastUpdatedPath, lowerBound);
           break;
@@ -74,13 +76,16 @@ public class QueryUtils {
       }
     }
 
+    // Form an interval predicate form upper and lower bound predicates
+    Predicate intervalPredicate = null;
     if (lowerBoundPredicate != null && upperBoundPredicate != null) {
-      return criteriaBuilder.and(lowerBoundPredicate, upperBoundPredicate);
+      intervalPredicate = criteriaBuilder.and(lowerBoundPredicate, upperBoundPredicate);
     } else if (lowerBoundPredicate != null) {
-      return lowerBoundPredicate;
+      intervalPredicate = lowerBoundPredicate;
     } else {
-      return upperBoundPredicate;
+      intervalPredicate = upperBoundPredicate;
     }
+    return intervalPredicate;
   }
 
   /**

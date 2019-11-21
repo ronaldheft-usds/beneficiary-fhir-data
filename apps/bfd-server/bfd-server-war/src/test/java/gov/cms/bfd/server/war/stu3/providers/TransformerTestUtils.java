@@ -2012,8 +2012,7 @@ final class TransformerTestUtils {
           actualResource.getMeta().getLastUpdated().toInstant(),
           lastUpdated.toInstant());
     } else {
-      Assert.assertNotNull(
-          "Expect lastUpdated to be null", actualResource.getMeta().getLastUpdated());
+      Assert.assertNull("Expect lastUpdated to be null", actualResource.getMeta().getLastUpdated());
     }
   }
 }

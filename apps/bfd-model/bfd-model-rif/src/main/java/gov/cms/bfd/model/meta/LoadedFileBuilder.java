@@ -2,7 +2,6 @@ package gov.cms.bfd.model.meta;
 
 import gov.cms.bfd.model.rif.RifFileEvent;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 
@@ -19,7 +18,7 @@ public class LoadedFileBuilder {
    */
   public LoadedFileBuilder(RifFileEvent rifFileEvent) {
     this.rifFileType = rifFileEvent.getFile().getFileType().toString();
-    this.startTime = Date.from(Instant.now());
+    this.startTime = new Date();
     this.beneficiaries = new ArrayList<>();
   }
 
@@ -44,7 +43,7 @@ public class LoadedFileBuilder {
     file.setRifType(rifFileType);
     file.setCount(beneficiaries.size());
     file.setFirstUpdated(startTime);
-    file.setLastUpdated(Date.from(Instant.now()));
+    file.setLastUpdated(new Date());
     file.setFilterType(FilterSerialization.DEFAULT_SERIALIZATION);
     file.setFilterBytes(FilterSerialization.serialize(array));
     return file;

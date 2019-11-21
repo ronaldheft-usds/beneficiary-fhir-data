@@ -322,7 +322,7 @@ public final class CoverageResourceProviderIT {
             .map(r -> (Beneficiary) r)
             .findFirst()
             .get();
-    Date nowDate = Date.from(Instant.now());
+    Date nowDate = new Date();
     Date tensSecondsAgoDate = Date.from(Instant.now().minusMillis(10000));
     DateRangeParam inBoundsRange = new DateRangeParam();
     inBoundsRange.setRangeFromDatesInclusive(tensSecondsAgoDate, nowDate);

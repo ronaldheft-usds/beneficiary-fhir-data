@@ -9,7 +9,6 @@ import gov.cms.bfd.model.rif.samples.StaticRifResource;
 import gov.cms.bfd.model.rif.samples.StaticRifResourceGroup;
 import gov.cms.bfd.server.war.ServerTestUtils;
 import gov.cms.bfd.server.war.stu3.providers.PatientResourceProvider.IncludeIdentifiersMode;
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -65,12 +64,18 @@ public final class BeneficiaryTransformerTest {
   @Test
   public void transformSampleARecordWithLastUpdated() {
     Beneficiary beneficiary = loadSampleABeneficiary();
-    beneficiary.setLastUpdated(Date.from(Instant.now()));
 
-    Patient patient =
+    beneficiary.setLastUpdated(new Date());
+    Patient patientWithLastUpdated =
         BeneficiaryTransformer.transform(
             new MetricRegistry(), beneficiary, IncludeIdentifiersMode.OMIT_HICNS_AND_MBIS);
-    assertMatches(beneficiary, patient);
+    assertMatches(beneficiary, patientWithLastUpdated);
+
+    beneficiary.setLastUpdated(null);
+    Patient patientWithoutLastUpdated =
+        BeneficiaryTransformer.transform(
+            new MetricRegistry(), beneficiary, IncludeIdentifiersMode.OMIT_HICNS_AND_MBIS);
+    assertMatches(beneficiary, patientWithoutLastUpdated);
   }
 
   /**

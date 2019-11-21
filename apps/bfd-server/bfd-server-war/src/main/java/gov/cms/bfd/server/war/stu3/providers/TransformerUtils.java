@@ -3149,9 +3149,10 @@ public final class TransformerUtils {
    * @param lastUpdated is the lastUpdated value from the entity
    */
   public static void setLastUpdated(IAnyResource resource, Optional<Date> lastUpdated) {
-    resource
-        .getMeta()
-        .setLastUpdated(lastUpdated.orElse(TransformerConstants.DEFAULT_LAST_UPDATED));
+    lastUpdated.ifPresent(
+        value -> {
+          resource.getMeta().setLastUpdated(value);
+        });
   }
 
   /**
