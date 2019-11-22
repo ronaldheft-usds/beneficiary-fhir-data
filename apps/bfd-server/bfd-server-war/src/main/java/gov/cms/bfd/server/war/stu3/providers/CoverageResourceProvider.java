@@ -47,6 +47,7 @@ public final class CoverageResourceProvider implements IResourceProvider {
 
   private EntityManager entityManager;
   private MetricRegistry metricRegistry;
+  private LoadedFilterManager loadedFilterManager;
 
   /** @param entityManager a JPA {@link EntityManager} connected to the application's database */
   @PersistenceContext
@@ -58,6 +59,12 @@ public final class CoverageResourceProvider implements IResourceProvider {
   @Inject
   public void setMetricRegistry(MetricRegistry metricRegistry) {
     this.metricRegistry = metricRegistry;
+  }
+
+  /** @param loadedFilterManager the {@link LoadedFilterManager} to use */
+  @Inject
+  public void setLoadedFilterManager(LoadedFilterManager loadedFilterManager) {
+    this.loadedFilterManager = loadedFilterManager;
   }
 
   /** @see ca.uhn.fhir.rest.server.IResourceProvider#getResourceType() */
@@ -166,15 +173,19 @@ public final class CoverageResourceProvider implements IResourceProvider {
    * @throws NoResultException A {@link NoResultException} will be thrown if no matching {@link
    *     Beneficiary} can be found in the database.
    */
-  private Beneficiary findBeneficiaryById(String beneficiaryId, DateRangeParam lastUpdated)
+  private Beneficiary findBeneficiaryById(String beneficiaryId, DateRangeParam lastUpdatedRange)
       throws NoResultException {
+    // Optimize when the lastUpdated parameter is specified and result set is empty
+    if (loadedFilterManager.isResultSetEmpty(beneficiaryId, lastUpdatedRange)) {
+      throw new NoResultException();
+    }
     CriteriaBuilder builder = entityManager.getCriteriaBuilder();
     CriteriaQuery<Beneficiary> criteria = builder.createQuery(Beneficiary.class);
     Root<Beneficiary> root = criteria.from(Beneficiary.class);
     criteria.select(root);
     Predicate wherePredicate = builder.equal(root.get(Beneficiary_.beneficiaryId), beneficiaryId);
-    if (lastUpdated != null && !lastUpdated.isEmpty()) {
-      Predicate predicate = QueryUtils.createLastUpdatedPredicate(builder, root, lastUpdated);
+    if (lastUpdatedRange != null) {
+      Predicate predicate = QueryUtils.createLastUpdatedPredicate(builder, root, lastUpdatedRange);
       wherePredicate = builder.and(wherePredicate, predicate);
     }
     criteria.where(wherePredicate);
@@ -195,7 +206,9 @@ public final class CoverageResourceProvider implements IResourceProvider {
           beneByIdQueryNanoSeconds,
           beneficiary == null ? 0 : 1);
     }
-
+    if (!QueryUtils.isInRange(beneficiary.getLastUpdated().orElse(null), lastUpdatedRange)) {
+      throw new NoResultException();
+    }
     return beneficiary;
   }
 }

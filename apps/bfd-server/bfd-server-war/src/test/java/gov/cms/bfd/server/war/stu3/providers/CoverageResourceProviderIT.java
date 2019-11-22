@@ -323,9 +323,8 @@ public final class CoverageResourceProviderIT {
             .findFirst()
             .get();
     Date nowDate = new Date();
-    Date tensSecondsAgoDate = Date.from(Instant.now().minusMillis(10000));
-    DateRangeParam inBoundsRange = new DateRangeParam();
-    inBoundsRange.setRangeFromDatesInclusive(tensSecondsAgoDate, nowDate);
+    Date secondsAgoDate = Date.from(Instant.now().minusSeconds(100));
+    DateRangeParam inBoundsRange = new DateRangeParam(secondsAgoDate, nowDate);
     Bundle searchInBoundsResults =
         fhirClient
             .search()
@@ -338,8 +337,8 @@ public final class CoverageResourceProviderIT {
     Assert.assertNotNull(searchInBoundsResults);
     Assert.assertEquals(MedicareSegment.values().length, searchInBoundsResults.getTotal());
 
-    DateRangeParam outOfBoundsRange = new DateRangeParam();
-    outOfBoundsRange.setUpperBoundExclusive(tensSecondsAgoDate);
+    Date hourAgoDate = Date.from(Instant.now().minusSeconds(3600));
+    DateRangeParam outOfBoundsRange = new DateRangeParam(hourAgoDate, secondsAgoDate);
     Bundle searchOutOfBoundsResult =
         fhirClient
             .search()

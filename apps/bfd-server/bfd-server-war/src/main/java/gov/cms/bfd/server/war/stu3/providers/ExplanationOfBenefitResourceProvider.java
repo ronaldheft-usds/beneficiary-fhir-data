@@ -199,10 +199,8 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
 
     List<IBaseResource> eobs = new ArrayList<IBaseResource>();
 
-    /*
-     * Optimize when the lastUpdated parameter is specified and result set is empty
-     */
-    if (lastUpdated != null && loadedFilterManager.isResultSetEmpty(beneficiaryId, lastUpdated)) {
+    // Optimize when the lastUpdated parameter is specified and result set is empty
+    if (loadedFilterManager.isResultSetEmpty(beneficiaryId, lastUpdated)) {
       return TransformerUtils.createBundle(
           requestDetails,
           lastUpdated,
@@ -256,6 +254,9 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
 
     if (Boolean.parseBoolean(excludeSamhsa) == true) filterSamhsa(eobs);
 
+    if (lastUpdated != null) {
+      eobs.removeIf(eob -> !QueryUtils.isInRange(eob.getMeta().getLastUpdated(), lastUpdated));
+    }
     eobs.sort(ExplanationOfBenefitResourceProvider::compareByClaimIdThenClaimType);
 
     return TransformerUtils.createBundle(

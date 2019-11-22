@@ -2,6 +2,7 @@ package gov.cms.bfd.server.war.stu3.providers;
 
 import ca.uhn.fhir.rest.param.DateRangeParam;
 import ca.uhn.fhir.rest.param.ParamPrefixEnum;
+import java.time.Instant;
 import java.util.Date;
 import javax.persistence.criteria.CriteriaBuilder;
 import javax.persistence.criteria.Path;
@@ -82,8 +83,12 @@ public class QueryUtils {
       intervalPredicate = criteriaBuilder.and(lowerBoundPredicate, upperBoundPredicate);
     } else if (lowerBoundPredicate != null) {
       intervalPredicate = lowerBoundPredicate;
-    } else {
+    } else if (upperBoundPredicate != null) {
       intervalPredicate = upperBoundPredicate;
+    } else {
+      // must be an empty range, shouldn't happen, but just return an everything predicate
+      intervalPredicate =
+          criteriaBuilder.greaterThanOrEqualTo(lastUpdatedPath, Date.from(Instant.MIN));
     }
     return intervalPredicate;
   }
@@ -91,12 +96,12 @@ public class QueryUtils {
   /**
    * Create a predicate for the lastUpdate field based on the passed range.
    *
-   * @param lastUpdated date to test
-   * @param range to base test against
+   * @param lastUpdated date to test. Maybe null.
+   * @param range to base test against. Maybe null.
    * @return true iff within the range specified
    */
   static boolean isInRange(Date lastUpdated, DateRangeParam range) {
-    if (range == null || range.isEmpty()) {
+    if (range == null || range.isEmpty() || lastUpdated == null) {
       return true;
     }
     final Date lowerBound = range.getLowerBoundAsInstant();
