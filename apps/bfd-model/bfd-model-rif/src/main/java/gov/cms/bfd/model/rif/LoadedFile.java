@@ -1,4 +1,4 @@
-package gov.cms.bfd.model.meta;
+package gov.cms.bfd.model.rif;
 
 import java.util.Date;
 import javax.persistence.Column;

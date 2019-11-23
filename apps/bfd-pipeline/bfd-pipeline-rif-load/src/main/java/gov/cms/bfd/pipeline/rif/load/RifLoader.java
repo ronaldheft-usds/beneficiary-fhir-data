@@ -6,14 +6,14 @@ import com.codahale.metrics.Timer;
 import com.justdavis.karl.misc.exceptions.BadCodeMonkeyException;
 import com.zaxxer.hikari.HikariDataSource;
 import com.zaxxer.hikari.pool.HikariProxyConnection;
-import gov.cms.bfd.model.meta.LoadedFile;
-import gov.cms.bfd.model.meta.LoadedFileBuilder;
 import gov.cms.bfd.model.rif.Beneficiary;
 import gov.cms.bfd.model.rif.BeneficiaryCsvWriter;
 import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimCsvWriter;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
+import gov.cms.bfd.model.rif.LoadedFile;
+import gov.cms.bfd.model.rif.LoadedFileBuilder;
 import gov.cms.bfd.model.rif.RecordAction;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
@@ -60,7 +60,9 @@ import javax.persistence.EntityTransaction;
 import javax.persistence.Persistence;
 import javax.persistence.Table;
 import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.criteria.CriteriaDelete;
 import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.Root;
 import javax.sql.DataSource;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.csv.CSVFormat;
@@ -373,7 +375,14 @@ public final class RifLoader implements AutoCloseable {
         postgresBatch.submit();
       }
     }
+
+    // Save the loaded beneficiary information that we have been saving.
+    Timer.Context timerInsertLoadedFile =
+        appMetrics
+            .timer(MetricRegistry.name(getClass().getSimpleName(), "insertLoadedFile"))
+            .time();
     insertLoadedFile(loadedFileBuilder, errorHandler);
+    timerInsertLoadedFile.stop();
 
     LOGGER.info("Processed '{}'.", dataToLoad);
     timerDataSetFile.stop();
@@ -607,17 +616,16 @@ public final class RifLoader implements AutoCloseable {
         Date oldDate = Date.from(Instant.now().minus(MAX_FILE_AGE, ChronoUnit.DAYS));
         txn = em.getTransaction();
         txn.begin();
-        long oldCount =
-            em.createQuery(
-                    "select count(f) from LoadedFile as f where f.lastUpdated < :oldDate",
-                    Long.class)
-                .setParameter("oldDate", oldDate)
-                .getSingleResult();
+        CriteriaBuilder cb = em.getCriteriaBuilder();
+        CriteriaQuery<Long> countCriteria = cb.createQuery(Long.class);
+        Root<LoadedFile> f = countCriteria.from(LoadedFile.class);
+        countCriteria.select(cb.count(f)).where(cb.lessThan(f.get("lastUpdated"), oldDate));
+        final long oldCount = em.createQuery(countCriteria).getSingleResult();
         if (oldCount > 0) {
-          int deleted =
-              em.createQuery("delete from LoadedFile as f where f.lastUpdated < :oldDate")
-                  .setParameter("oldDate", oldDate)
-                  .executeUpdate();
+          CriteriaDelete<LoadedFile> deleteCriteria = cb.createCriteriaDelete(LoadedFile.class);
+          Root<LoadedFile> d = deleteCriteria.from(LoadedFile.class);
+          deleteCriteria.where(cb.lessThan(d.get("lastUpdated"), oldDate));
+          int deleted = em.createQuery(deleteCriteria).executeUpdate();
           LOGGER.info("Deleting {} LoadedFiles", deleted);
           txn.commit();
         } else {

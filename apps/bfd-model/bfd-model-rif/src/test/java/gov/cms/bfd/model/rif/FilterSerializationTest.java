@@ -1,6 +1,6 @@
 package gov.cms.bfd.model.rif.meta;
 
-import gov.cms.bfd.model.meta.FilterSerialization;
+import gov.cms.bfd.model.rif.FilterSerialization;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;

@@ -1,4 +1,4 @@
-package gov.cms.bfd.model.meta;
+package gov.cms.bfd.model.rif;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;

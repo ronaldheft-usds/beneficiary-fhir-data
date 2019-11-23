@@ -3,8 +3,8 @@ package gov.cms.bfd.server.war.stu3.providers;
 import ca.uhn.fhir.rest.param.DateParam;
 import ca.uhn.fhir.rest.param.DateRangeParam;
 import ca.uhn.fhir.rest.param.ParamPrefixEnum;
-import gov.cms.bfd.model.meta.FilterSerialization;
-import gov.cms.bfd.model.meta.LoadedFile;
+import gov.cms.bfd.model.rif.FilterSerialization;
+import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RifFileType;
 import java.io.IOException;
 import java.time.Instant;
@@ -58,6 +58,7 @@ public final class LoadedFilterManagerTest {
     // Refresh with sample 1
     filterManager.refreshFiltersDirectly(
         Arrays.asList(sample1), Arrays.asList(SAMPLE_BENE), dates[8]);
+    Assert.assertEquals(1, filterManager.getFilters().size());
 
     // Test after refresh
     Assert.assertFalse(
@@ -130,6 +131,7 @@ public final class LoadedFilterManagerTest {
     final LoadedFilterManager filterManager = new LoadedFilterManager();
     filterManager.refreshFiltersDirectly(
         Arrays.asList(sample1, sample2), Arrays.asList(SAMPLE_BENE), dates[16]);
+    Assert.assertEquals(2, filterManager.getFilters().size());
 
     // Test sample 1
     Assert.assertFalse(

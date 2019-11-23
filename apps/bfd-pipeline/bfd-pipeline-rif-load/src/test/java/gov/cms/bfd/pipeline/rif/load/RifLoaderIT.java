@@ -2,13 +2,13 @@ package gov.cms.bfd.pipeline.rif.load;
 
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Slf4jReporter;
-import gov.cms.bfd.model.meta.FilterSerialization;
-import gov.cms.bfd.model.meta.LoadedFile;
 import gov.cms.bfd.model.rif.Beneficiary;
 import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.BeneficiaryHistory_;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
+import gov.cms.bfd.model.rif.FilterSerialization;
+import gov.cms.bfd.model.rif.LoadedFile;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
 import gov.cms.bfd.model.rif.RifFilesEvent;
