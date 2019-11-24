@@ -58,6 +58,16 @@
       }, {
         "name" : "type",
         "type" : "token"
+      }, {
+        "name" : "patient",
+        "type" : "reference",
+        "documentation" : "The reference to the patient"
+      }, {
+        "name" : "plaid",
+        "type" : "string"
+      }, {
+        "name" : "type",
+        "type" : "token"
       } ]
     }, {
       "type" : "OperationDefinition",
