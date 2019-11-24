@@ -1,5 +1,6 @@
 package gov.cms.bfd.server.war.stu3.providers;
 
+import ca.uhn.fhir.model.api.TemporalPrecisionEnum;
 import ca.uhn.fhir.model.primitive.DateTimeDt;
 import ca.uhn.fhir.model.primitive.IdDt;
 import ca.uhn.fhir.rest.api.Constants;
@@ -41,6 +42,7 @@ import org.hl7.fhir.dstu3.model.Bundle;
 import org.hl7.fhir.dstu3.model.Bundle.BundleEntryComponent;
 import org.hl7.fhir.dstu3.model.ExplanationOfBenefit;
 import org.hl7.fhir.dstu3.model.Patient;
+import org.hl7.fhir.dstu3.model.Resource;
 import org.hl7.fhir.exceptions.FHIRException;
 import org.hl7.fhir.instance.model.api.IBaseBundle;
 import org.hl7.fhir.instance.model.api.IBaseResource;
@@ -1461,19 +1463,9 @@ public final class ExplanationOfBenefitResourceProviderIT {
    * @throws FHIRException (indicates test failure)
    */
   @Test
-  public void searchEobWithLastUpdated() throws FHIRException, InterruptedException {
-    List<Object> loadedRecords =
-        ServerTestUtils.loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
+  public void searchEobWithLastUpdated() throws FHIRException {
+    Beneficiary beneficiary = loadSampleA();
     IGenericClient fhirClient = ServerTestUtils.createFhirClient();
-    Thread.sleep(3000);
-
-    // Get beneficiary information
-    Beneficiary beneficiary =
-        loadedRecords.stream()
-            .filter(r -> r instanceof Beneficiary)
-            .map(r -> (Beneficiary) r)
-            .findFirst()
-            .get();
 
     // Build up a list of lastUpdatedURLs that return > all values values
     String nowDateTime = new DateTimeDt(Date.from(Instant.now().plusSeconds(1))).getValueAsString();
@@ -1496,6 +1488,34 @@ public final class ExplanationOfBenefitResourceProviderIT {
     testLastUpdatedUrls(fhirClient, beneficiary.getBeneficiaryId(), emptyUrls, 0);
   }
 
+  /** Verifys that a search with a lastUpdated with eq param works */
+  @Test
+  public void searchEobWithEq() throws FHIRException {
+    Beneficiary beneficiary = loadSampleA();
+    String beneId = beneficiary.getBeneficiaryId();
+    IGenericClient fhirClient = ServerTestUtils.createFhirClient();
+
+    // Find an EOB
+    Bundle allEobs = fetchWithLastUpdated(fhirClient, beneId, "");
+    Assert.assertTrue(allEobs.getEntry().size() > 0);
+    Resource testEob = allEobs.getEntry().get(0).getResource();
+
+    // Fetch it again with an lastupdate
+    Date testDate = testEob.getMeta().getLastUpdated();
+    DateTimeDt fhirTestMillis = new DateTimeDt(testDate, TemporalPrecisionEnum.MILLI);
+    String lastUpdatedEq = "_lastUpdated=eq" + fhirTestMillis.getValueAsString();
+    Bundle eobsWithTime = fetchWithLastUpdated(fhirClient, beneId, lastUpdatedEq);
+    Assert.assertTrue("Expected to hava at least one match", eobsWithTime.getEntry().size() > 0);
+
+    // Test that each retrived match the testDate with second percision
+    eobsWithTime.getEntry().stream()
+        .forEach(
+            eob -> {
+              Date actualDate = eob.getResource().getMeta().getLastUpdated();
+              Assert.assertEquals(testDate.getTime(), actualDate.getTime());
+            });
+  }
+
   /**
    * Verifies that {@link
    * gov.cms.bfd.server.war.stu3.providers.ExplanationOfBenefitResourceProvider#findByPatient} works
@@ -1505,17 +1525,8 @@ public final class ExplanationOfBenefitResourceProviderIT {
    */
   @Test
   public void searchEobWithLastUpdatedAndPagination() throws FHIRException {
-    List<Object> loadedRecords =
-        ServerTestUtils.loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
+    Beneficiary beneficiary = loadSampleA();
     IGenericClient fhirClient = ServerTestUtils.createFhirClient();
-
-    // Get beneficiary information
-    Beneficiary beneficiary =
-        loadedRecords.stream()
-            .filter(r -> r instanceof Beneficiary)
-            .map(r -> (Beneficiary) r)
-            .findFirst()
-            .get();
 
     // Search with lastUpdated range between yesterday and now
     int expectedCount = 3;
@@ -1607,19 +1618,44 @@ public final class ExplanationOfBenefitResourceProviderIT {
    */
   private void testLastUpdatedUrls(
       IGenericClient fhirClient, String id, List<String> urls, int expectedValue) {
-    String baseResourceUrl =
-        "ExplanationOfBenefit?patient=Patient%2F" + id + "&_format=application%2Fjson%2Bfhir";
 
     // Search for each lastUpdated value
     for (String lastUpdatedValue : urls) {
-      String theSearchUrl = baseResourceUrl + "&" + lastUpdatedValue;
-      Bundle searchResults =
-          fhirClient.search().byUrl(theSearchUrl).returnBundle(Bundle.class).execute();
+      Bundle searchResults = fetchWithLastUpdated(fhirClient, id, lastUpdatedValue);
       Assert.assertEquals(
-          String.format(
-              "Expected %s to filter resources using lastUpdated correctly", lastUpdatedValue),
+          String.format("Expected %s to filter resources correctly", lastUpdatedValue),
           expectedValue,
           searchResults.getTotal());
     }
+  }
+
+  private Beneficiary loadSampleA() {
+    List<Object> loadedRecords =
+        ServerTestUtils.loadData(Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
+    ;
+
+    // Return beneficiary information
+    return loadedRecords.stream()
+        .filter(r -> r instanceof Beneficiary)
+        .map(r -> (Beneficiary) r)
+        .findFirst()
+        .get();
+  }
+
+  /**
+   * Fetch a bundle
+   *
+   * @param fhirClient to use
+   * @param id the bene id to use
+   * @param lastUpdatedParam to added to the fetch
+   */
+  private Bundle fetchWithLastUpdated(
+      IGenericClient fhirClient, String id, String lastUpdatedParam) {
+    String url =
+        "ExplanationOfBenefit?patient=Patient%2F"
+            + id
+            + (lastUpdatedParam.isEmpty() ? "" : "&" + lastUpdatedParam)
+            + "&_format=application%2Fjson%2Bfhir";
+    return fhirClient.search().byUrl(url).returnBundle(Bundle.class).execute();
   }
 }

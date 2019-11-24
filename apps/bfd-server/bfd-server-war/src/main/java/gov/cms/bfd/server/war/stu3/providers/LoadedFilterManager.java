@@ -87,7 +87,7 @@ public class LoadedFilterManager {
   }
 
   /** Called periodically to build and refresh the filters list. */
-  @Scheduled(fixedDelay = 10000, initialDelay = 10000)
+  @Scheduled(fixedDelay = 10000, initialDelay = 2000)
   public void refreshFilters() {
     refreshFiltersWithDelay(5);
   }

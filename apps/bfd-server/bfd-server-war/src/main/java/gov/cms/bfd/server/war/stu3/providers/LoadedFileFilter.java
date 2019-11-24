@@ -61,8 +61,13 @@ public class LoadedFileFilter {
             return false;
           }
           break;
+        case EQUAL:
+          if (upperBound.getValue().getTime() < getFirstUpdated().getTime()) {
+            return false;
+          }
+          break;
         default:
-          throw new IllegalArgumentException();
+          throw new IllegalArgumentException("Invalid upper bound in _lastUpdated");
       }
     }
 
@@ -79,8 +84,13 @@ public class LoadedFileFilter {
             return false;
           }
           break;
+        case EQUAL:
+          if (lowerBound.getValue().getTime() > getLastUpdated().getTime()) {
+            return false;
+          }
+          break;
         default:
-          throw new IllegalArgumentException();
+          throw new IllegalArgumentException("Invalid lower bound in _lastUpdated");
       }
     }
 

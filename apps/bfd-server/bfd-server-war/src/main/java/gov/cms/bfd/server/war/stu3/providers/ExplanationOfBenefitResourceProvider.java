@@ -40,6 +40,8 @@ import org.hl7.fhir.dstu3.model.Bundle;
 import org.hl7.fhir.dstu3.model.ExplanationOfBenefit;
 import org.hl7.fhir.dstu3.model.IdType;
 import org.hl7.fhir.instance.model.api.IBaseResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -48,6 +50,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public final class ExplanationOfBenefitResourceProvider implements IResourceProvider {
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(ExplanationOfBenefitResourceProvider.class);
 
   /**
    * A {@link Pattern} that will match the {@link ExplanationOfBenefit#getId()}s used in this
@@ -254,9 +258,6 @@ public final class ExplanationOfBenefitResourceProvider implements IResourceProv
 
     if (Boolean.parseBoolean(excludeSamhsa) == true) filterSamhsa(eobs);
 
-    if (lastUpdated != null) {
-      eobs.removeIf(eob -> !QueryUtils.isInRange(eob.getMeta().getLastUpdated(), lastUpdated));
-    }
     eobs.sort(ExplanationOfBenefitResourceProvider::compareByClaimIdThenClaimType);
 
     return TransformerUtils.createBundle(

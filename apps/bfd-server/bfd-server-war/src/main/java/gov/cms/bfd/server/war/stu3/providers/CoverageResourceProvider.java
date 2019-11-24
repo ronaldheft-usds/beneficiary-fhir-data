@@ -206,9 +206,6 @@ public final class CoverageResourceProvider implements IResourceProvider {
           beneByIdQueryNanoSeconds,
           beneficiary == null ? 0 : 1);
     }
-    if (!QueryUtils.isInRange(beneficiary.getLastUpdated().orElse(null), lastUpdatedRange)) {
-      throw new NoResultException();
-    }
     return beneficiary;
   }
 }

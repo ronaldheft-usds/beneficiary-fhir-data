@@ -106,36 +106,36 @@ public class QueryUtils {
     }
     final Date lowerBound = range.getLowerBoundAsInstant();
     final Date upperBound = range.getUpperBoundAsInstant();
+    final long lastUpdatedMillis = lastUpdated.getTime();
 
     if (lowerBound != null) {
+      final long lowerBoundMillis = lowerBound.getTime();
       switch (range.getLowerBound().getPrefix()) {
         case GREATERTHAN:
-          if (lowerBound.compareTo(lastUpdated) >= 0) {
+          if (lastUpdatedMillis <= lowerBoundMillis) {
             return false;
           }
           break;
         case EQUAL:
+          if (lastUpdatedMillis < lowerBoundMillis) {
+            return false;
+          }
         case GREATERTHAN_OR_EQUALS:
-          if (lowerBound.compareTo(lastUpdated) > 0) {
+          if (lastUpdatedMillis < lowerBoundMillis) {
             return false;
           }
           break;
-        case STARTS_AFTER:
-        case APPROXIMATE:
-        case ENDS_BEFORE:
-        case LESSTHAN:
-        case LESSTHAN_OR_EQUALS:
-        case NOT_EQUAL:
         default:
           throw new IllegalArgumentException("_lastUpdate lower bound has invalid prefix");
       }
     }
 
     if (upperBound != null) {
+      final long upperBoundMillis = upperBound.getTime();
       switch (range.getUpperBound().getPrefix()) {
         case EQUAL:
           if (range.getLowerBound().getPrefix() == ParamPrefixEnum.EQUAL) {
-            if (upperBound.compareTo(lastUpdated) < 0) {
+            if (lastUpdatedMillis > upperBoundMillis) {
               return false;
             }
           } else {
@@ -144,21 +144,15 @@ public class QueryUtils {
           }
           break;
         case LESSTHAN:
-          if (upperBound.compareTo(lastUpdated) <= 0) {
+          if (lastUpdatedMillis >= upperBoundMillis) {
             return false;
           }
           break;
         case LESSTHAN_OR_EQUALS:
-          if (upperBound.compareTo(lastUpdated) < 0) {
+          if (lastUpdatedMillis > upperBoundMillis) {
             return false;
           }
           break;
-        case ENDS_BEFORE:
-        case APPROXIMATE:
-        case STARTS_AFTER:
-        case GREATERTHAN:
-        case GREATERTHAN_OR_EQUALS:
-        case NOT_EQUAL:
         default:
           throw new IllegalArgumentException("_lastUpdate upper bound has invalid prefix");
       }
