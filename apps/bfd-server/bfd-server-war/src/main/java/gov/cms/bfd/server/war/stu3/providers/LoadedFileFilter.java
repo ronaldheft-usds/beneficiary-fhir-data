@@ -15,9 +15,14 @@ import java.util.Date;
 public class LoadedFileFilter {
   public static final double FALSE_POSITIVE_PERCENTAGE = 0.01;
 
+  // The entry of the LoadedFiles table
   private final long loadedFileId;
+
+  // The interval of time when the RIF load took place
   private final Date firstUpdated;
   private final Date lastUpdated;
+
+  // The beneficiaries that were updated in the RIF load
   private final BloomFilter<String> updatedBeneficiaries;
 
   /**

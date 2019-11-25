@@ -31,8 +31,11 @@ import org.springframework.stereotype.Component;
 public class LoadedFilterManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(LoadedFilterManager.class);
 
-  private List<LoadedFileFilter> filters;
+  // The connection to the DB
   private EntityManager entityManager;
+
+  // The filter set
+  private List<LoadedFileFilter> filters;
 
   // Estimate of the time it takes for a write to the DB to replicate to have a read.
   private int replicaDelay;
