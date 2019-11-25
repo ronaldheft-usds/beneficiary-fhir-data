@@ -49,7 +49,7 @@ create table "LoadedFiles" (
   "filterType" varchar(20) not null,		
   "filterBytes" ${logic.blob},				  
   "firstUpdated" timestamp with time zone not null,		  	
-  "lastUpdated" timestamp with time zone not null
+  "lastUpdated" timestamp with time zone
 )
 ${logic.tablespaces-escape} tablespace "loadedfiles_ts"
 ;

@@ -1,5 +1,6 @@
 package gov.cms.bfd.model.rif;
 
+import com.justdavis.karl.misc.exceptions.BadCodeMonkeyException;
 import java.io.IOException;
 import java.util.Date;
 import java.util.Vector;
@@ -8,17 +9,15 @@ import java.util.Vector;
 public class LoadedFileBuilder {
   private static final int capacityIncrement = 100000;
   private Vector<String> beneficiaries;
-  private Date startTime;
-  private String rifFileType;
+  private LoadedFile loadedFile;
 
   /**
    * Create a builder from a particular file event
    *
-   * @param rifFileEvent to base the LoadedFile
+   * @param loadedFile to start building
    */
-  public LoadedFileBuilder(RifFileEvent rifFileEvent) {
-    this.rifFileType = rifFileEvent.getFile().getFileType().toString();
-    this.startTime = new Date();
+  public LoadedFileBuilder(LoadedFile loadedFile) {
+    this.loadedFile = loadedFile;
     this.beneficiaries = new Vector<>(capacityIncrement, capacityIncrement);
   }
 
@@ -38,18 +37,21 @@ public class LoadedFileBuilder {
    * Create a LoadedFile from the data in the builder
    *
    * @return a new LoadedFile
-   * @throws IOException
+   * @throws IOException on serialization errors
    */
   public LoadedFile build() throws IOException {
+    if (loadedFile == null || beneficiaries == null) {
+      throw new BadCodeMonkeyException("Shouldn't call build twice");
+    }
     synchronized (this) {
-      final LoadedFile file = new LoadedFile();
+      final LoadedFile file = loadedFile;
       final String[] array = FilterSerialization.fromList(beneficiaries);
-      file.setRifType(rifFileType);
       file.setCount(beneficiaries.size());
-      file.setFirstUpdated(startTime);
       file.setLastUpdated(new Date());
       file.setFilterType(FilterSerialization.DEFAULT_SERIALIZATION);
       file.setFilterBytes(FilterSerialization.serialize(array));
+      loadedFile = null;
+      beneficiaries = null;
       return file;
     }
   }

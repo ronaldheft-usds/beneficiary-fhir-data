@@ -1,6 +1,5 @@
-package gov.cms.bfd.model.rif.meta;
+package gov.cms.bfd.model.rif;
 
-import gov.cms.bfd.model.rif.FilterSerialization;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -70,7 +69,7 @@ public class FilterSerializationTest {
   }
 
   static String[] buildTestIds() {
-    final String[] array = new String[1000000];
+    final String[] array = new String[100000];
     final Random random = new Random();
     for (int i = 0; i < array.length; i++) {
       long beneId = random.nextLong() / 10000000; // Reduce the range of values

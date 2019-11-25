@@ -64,7 +64,23 @@ For each beneficiary in the export group, the partner searches within a time int
 The lower bound of the interval is the `_since` parameter time passed by the bulk-export client. 
 The upper bound of the time interval is the start of the bulk-export job. 
 The start time is called the `transactionTime`, and the partner reports this time back to the client. 
-The client uses the  `transactionTime` as the `_since` time of the next bulk-export.
+The client uses the  `transactionTime` as the `_since` time of the next bulk-export. An example URL where the time period requested is a week is: 
+
+```
+https://<hostname>/v1/fhir/ExplanationOfBenefit
+  ?patient=<beneficiaryId>
+  &_lastUpdated=gt2018-11-22T14:01:01-05:00
+  &_lastUpdated=le2018-18-22T15:00:00-05:00
+  &_format=application%2Fjson%2Bfhir
+```
+
+The FHIR specification allows to bulk-export implementors to choose the `transactionTime` of their jobs. For efficient and fast queries, it is recommended that partners query with a time interval which the BFD has indexed the `lastUpdated` field. 
+The indexing of `lastUpdated` is typically delayed by 10 seconds when RIF files are not being loaded. 
+However, when RIF files are being loaded, the delay will be comperable to the time it takes to load the RIF file. 
+The average time to load the largest RIF file is about 30 minutes. 
+It is recommended that implementors choose a `transactionTime` that is 10 seconds in the past to ensure that all of their fetches will run against an index in BFD. During RIF loads over the weekend, the recommendation changes to 45 minutes. 
+As long a partners query within these recommendation, they can recommend to their clients a daily  frequency for their bulk export jobs with `_since` without taxing the BFD. 
+
 
 ### BFD Implementation Details
 

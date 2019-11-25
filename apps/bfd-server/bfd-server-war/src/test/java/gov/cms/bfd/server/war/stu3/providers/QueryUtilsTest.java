@@ -11,6 +11,10 @@ import org.junit.Test;
 public class QueryUtilsTest {
   @Test
   public void testInRange() {
+    /**
+     * Dev Note: There might be a bug in DateRangeParam and DateParam where it rounds a value that
+     * is set a millisecond up or down. It makes it hard to test at the edges of a range.
+     */
     Date lowerDate = new Date();
     Date middleDate = Date.from(Instant.now().plusSeconds(500));
     Date upperDate = Date.from(Instant.now().plusSeconds(1000));

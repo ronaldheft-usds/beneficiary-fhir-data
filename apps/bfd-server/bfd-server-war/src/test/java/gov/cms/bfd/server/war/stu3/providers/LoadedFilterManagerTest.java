@@ -19,7 +19,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class LoadedFilterManagerTest {
+  @SuppressWarnings("unused")
   private static final Logger LOGGER = LoggerFactory.getLogger(LoadedFilterManagerIT.class);
+
   private static final String SAMPLE_BENE = "567834";
   private static final String INVALID_BENE = "1";
 
@@ -47,20 +49,21 @@ public final class LoadedFilterManagerTest {
         new DateRangeParam()
             .setUpperBound(new DateParam(ParamPrefixEnum.LESSTHAN_OR_EQUALS, dates[7]));
 
-    final LoadedFilterManager filterManager = new LoadedFilterManager();
+    final LoadedFilterManager filterManager = new LoadedFilterManager(0);
 
     // Test before refresh
-    Assert.assertFalse(
-        "Execpted false before refresh", filterManager.isResultSetEmpty(SAMPLE_BENE, during1));
-    Assert.assertFalse(
-        "Execpted false before refresh", filterManager.isResultSetEmpty(INVALID_BENE, during1));
+    Assert.assertFalse(filterManager.isInKnownBounds(during1));
+    Assert.assertFalse(filterManager.isResultSetEmpty(SAMPLE_BENE, during1));
+    Assert.assertFalse(filterManager.isResultSetEmpty(INVALID_BENE, during1));
 
     // Refresh with sample 1
-    filterManager.refreshFiltersDirectly(
-        Arrays.asList(sample1), Arrays.asList(SAMPLE_BENE), dates[8]);
+    filterManager.refreshFiltersDirectly(Arrays.asList(sample1), dates[8]);
     Assert.assertEquals(1, filterManager.getFilters().size());
+    Assert.assertEquals(dates[2], filterManager.getKnownLowerBound());
+    Assert.assertEquals(dates[8], filterManager.getKnownUpperBound());
 
     // Test after refresh
+    Assert.assertTrue(filterManager.isInKnownBounds(during1));
     Assert.assertFalse(
         "Result should not be empty", filterManager.isResultSetEmpty(SAMPLE_BENE, during1));
     Assert.assertTrue(
@@ -128,10 +131,17 @@ public final class LoadedFilterManagerTest {
     final DateRangeParam between = new DateRangeParam(dates[6], dates[7]);
     final DateRangeParam both = new DateRangeParam(dates[2], dates[11]);
 
-    final LoadedFilterManager filterManager = new LoadedFilterManager();
-    filterManager.refreshFiltersDirectly(
-        Arrays.asList(sample1, sample2), Arrays.asList(SAMPLE_BENE), dates[16]);
+    final LoadedFilterManager filterManager = new LoadedFilterManager(0);
+    filterManager.refreshFiltersDirectly(Arrays.asList(sample1, sample2), dates[16]);
     Assert.assertEquals(2, filterManager.getFilters().size());
+    Assert.assertEquals(dates[2], filterManager.getKnownLowerBound());
+    Assert.assertEquals(dates[16], filterManager.getKnownUpperBound());
+    Assert.assertTrue(
+        filterManager
+            .getFilters()
+            .get(0)
+            .getLastUpdated()
+            .after(filterManager.getFilters().get(1).getLastUpdated()));
 
     // Test sample 1
     Assert.assertFalse(
@@ -182,7 +192,7 @@ public final class LoadedFilterManagerTest {
     final DateRangeParam before1 = new DateRangeParam(dates[0], dates[1]);
     final DateRangeParam during1 = new DateRangeParam(dates[2], dates[3]);
 
-    filterManager.refreshFiltersDirectly(Arrays.asList(emptyFile1), Arrays.asList(), dates[4]);
+    filterManager.refreshFiltersDirectly(Arrays.asList(emptyFile1), dates[4]);
 
     // Test empty
     Assert.assertFalse(
@@ -202,16 +212,15 @@ public final class LoadedFilterManagerTest {
       dates[i] = Date.from(now.plusSeconds(i));
     }
 
-    final LoadedFilterManager filterManager = new LoadedFilterManager();
+    final LoadedFilterManager filterManager = new LoadedFilterManager(0);
 
     // refresh with an emptyFile
     final LoadedFile emptyFile1 = buildLoadedFile(1, dates[2], dates[2]);
-    filterManager.refreshFiltersDirectly(Arrays.asList(emptyFile1), Arrays.asList(), dates[4]);
+    filterManager.refreshFiltersDirectly(Arrays.asList(emptyFile1), dates[4]);
 
     // Update the file and refresh again
     final LoadedFile file1 = buildLoadedFile(1, dates[2], dates[5]);
-    filterManager.refreshFiltersDirectly(
-        Arrays.asList(file1), Arrays.asList(SAMPLE_BENE), dates[8]);
+    filterManager.refreshFiltersDirectly(Arrays.asList(file1), dates[8]);
 
     // Test the new filter
     Assert.assertEquals(1, filterManager.getFilters().size());
@@ -227,6 +236,32 @@ public final class LoadedFilterManagerTest {
         filterManager.isResultSetEmpty(SAMPLE_BENE, after1));
   }
 
+  @Test
+  public void testIncompleteLoadedFiles() throws IOException {
+    final LoadedFilterManager filterManager = new LoadedFilterManager(0);
+    // Create a few times
+    final Instant now = Instant.now().truncatedTo(ChronoUnit.DAYS);
+    final Date[] dates = new Date[20];
+    for (int i = 0; i < dates.length; i++) {
+      dates[i] = Date.from(now.plusSeconds(i));
+    }
+
+    final LoadedFile file1 = buildLoadedFile(1, dates[2], dates[5]);
+    filterManager.refreshFiltersDirectly(Arrays.asList(file1), dates[8]);
+    Assert.assertEquals(1, filterManager.getFilters().size());
+    Assert.assertEquals(dates[8], filterManager.getKnownUpperBound());
+
+    final LoadedFile file2Incomplete = buildIncompleteFile(2, dates[9]);
+    filterManager.refreshFiltersDirectly(Arrays.asList(file1, file2Incomplete), dates[10]);
+    Assert.assertEquals(dates[9], filterManager.getKnownUpperBound());
+    Assert.assertEquals(1, filterManager.getFilters().size());
+
+    final LoadedFile file2Complete = buildLoadedFile(2, dates[9], dates[11]);
+    filterManager.refreshFiltersDirectly(Arrays.asList(file1, file2Complete), dates[11]);
+    Assert.assertEquals(dates[11], filterManager.getKnownUpperBound());
+    Assert.assertEquals(2, filterManager.getFilters().size());
+  }
+
   public LoadedFile buildLoadedFile(long loadedFileId, Date firstUpdated, Date lastUpdated)
       throws IOException {
     final String[] benes = {SAMPLE_BENE};
@@ -239,5 +274,16 @@ public final class LoadedFilterManagerTest {
         beneBytes,
         firstUpdated,
         lastUpdated);
+  }
+
+  public LoadedFile buildIncompleteFile(long loadedFileId, Date firstUpdated) {
+    return new LoadedFile(
+        loadedFileId,
+        RifFileType.BENEFICIARY.toString(),
+        0,
+        FilterSerialization.DEFAULT_SERIALIZATION,
+        null,
+        firstUpdated,
+        null);
   }
 }

@@ -24,7 +24,9 @@ import org.slf4j.LoggerFactory;
 
 /** Integration tests for {@link gov.cms.bfd.server.war.stu3.providers.LoadedFilterManager}. */
 public final class LoadedFilterManagerIT {
+  @SuppressWarnings("unused")
   private static final Logger LOGGER = LoggerFactory.getLogger(LoadedFilterManagerIT.class);
+
   private static final String SAMPLE_BENE = "567834";
   private static final String INVALID_BENE = "1";
 
@@ -32,19 +34,23 @@ public final class LoadedFilterManagerIT {
   public void refreshFilters() {
     RifLoaderTestUtils.doTestWithDb(
         (dataSource, entityManager) -> {
-          final LoadedFilterManager filterManager = new LoadedFilterManager();
+          final LoadedFilterManager filterManager = new LoadedFilterManager(0);
           filterManager.setEntityManager(entityManager);
           loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
+          Date afterLoad = new Date();
 
           // Without a refresh, the manager should have an empty filter list
           final List<LoadedFileFilter> beforeFilters = filterManager.getFilters();
           Assert.assertEquals(0, beforeFilters.size());
 
           // Refresh the filter list
-          filterManager.refreshFiltersWithDelay(0);
+          filterManager.refreshFilters();
+          Date afterRefresh = new Date();
 
           // Should have many filters
           final List<LoadedFileFilter> afterFilters = filterManager.getFilters();
+          Assert.assertTrue(filterManager.getKnownLowerBound().getTime() <= afterLoad.getTime());
+          Assert.assertTrue(filterManager.getKnownUpperBound().getTime() <= afterRefresh.getTime());
           Assert.assertTrue(afterFilters.size() > 1);
 
           // Should be sorted by lastUpdated date
@@ -60,7 +66,7 @@ public final class LoadedFilterManagerIT {
   public void isResultSetEmpty() {
     RifLoaderTestUtils.doTestWithDb(
         (dataSource, entityManager) -> {
-          final LoadedFilterManager filterManager = new LoadedFilterManager();
+          final LoadedFilterManager filterManager = new LoadedFilterManager(0);
           filterManager.setEntityManager(entityManager);
           loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
 
@@ -74,9 +80,10 @@ public final class LoadedFilterManagerIT {
 
           // Refresh the filter list
           RifLoaderTestUtils.pauseMillis(10);
-          filterManager.refreshFiltersWithDelay(0);
+          filterManager.refreshFilters();
 
           // Test after refresh
+          Assert.assertTrue(filterManager.isInKnownBounds(afterSampleARange));
           Assert.assertTrue(
               "Expected date range to not have a matching filter",
               filterManager.isResultSetEmpty(SAMPLE_BENE, afterSampleARange));
@@ -91,7 +98,7 @@ public final class LoadedFilterManagerIT {
   public void testWithMultipleRefreshes() {
     RifLoaderTestUtils.doTestWithDb(
         (dataSource, entityManager) -> {
-          final LoadedFilterManager filterManager = new LoadedFilterManager();
+          final LoadedFilterManager filterManager = new LoadedFilterManager(0);
           filterManager.setEntityManager(entityManager);
           loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_A.getResources()));
 
@@ -105,9 +112,10 @@ public final class LoadedFilterManagerIT {
 
           // Refresh the filter list
           RifLoaderTestUtils.pauseMillis(10);
-          filterManager.refreshFiltersWithDelay(0);
+          filterManager.refreshFilters();
 
           // Test after refresh
+          Assert.assertTrue(filterManager.isInKnownBounds(afterSampleARange));
           Assert.assertTrue(
               "Expected date range to not have a matching filter",
               filterManager.isResultSetEmpty(SAMPLE_BENE, afterSampleARange));
@@ -121,7 +129,7 @@ public final class LoadedFilterManagerIT {
           RifLoaderTestUtils.pauseMillis(1000);
           final Date afterSampleU = new Date();
           final DateRangeParam aroundSampleU = new DateRangeParam(afterSampleA, afterSampleU);
-          filterManager.refreshFiltersWithDelay(0);
+          filterManager.refreshFilters();
 
           // Test after refresh
           Assert.assertFalse(

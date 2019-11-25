@@ -38,7 +38,7 @@ public class LoadedFile {
   @Column(name = "`firstUpdated`", nullable = false)
   private Date firstUpdated;
 
-  @Column(name = "`lastUpdated`", nullable = false)
+  @Column(name = "`lastUpdated`", nullable = true)
   private Date lastUpdated;
 
   public LoadedFile() {}

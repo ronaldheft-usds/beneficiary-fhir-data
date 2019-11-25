@@ -20,7 +20,7 @@ import org.xerial.snappy.SnappyInputStream;
 import org.xerial.snappy.SnappyOutputStream;
 
 /**
- * Class to serialize and deserialize a filter. A few are implmented for comparison purposes:
+ * Class to serialize and deserialize a filter. A few are implemented for comparison purposes:
  *
  * <p>Dev Note: Using the benchmark of 1M random beneficiary ids:
  *
@@ -66,7 +66,7 @@ public class FilterSerialization {
    *
    * @param filterType the filter serialization type
    * @param filterBytes the bytes to deserialize
-   * @return an array of beneficiciary ids
+   * @return an array of beneficiary ids
    * @throws IOException if there was some serialization error
    * @throws ClassNotFoundException if there was some serialization error
    */
@@ -98,7 +98,7 @@ public class FilterSerialization {
    *
    * @param beneficiaries to serialize
    * @return serialized bytes
-   * @throws IOException
+   * @throws IOException on serialization errors
    */
   public static byte[] serializeJava(String[] beneficiaries) throws IOException {
     try (final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
@@ -134,7 +134,7 @@ public class FilterSerialization {
    *
    * @param beneficiaries to serialize
    * @return serialized bytes
-   * @throws IOException
+   * @throws IOException on serialization errors
    */
   public static byte[] serializeBasic(String[] beneficiaries) throws IOException {
     int capacity = beneficiaries.length * 15;
@@ -162,7 +162,7 @@ public class FilterSerialization {
    *
    * @param beneficiaries to serialize
    * @return serialized bytes
-   * @throws IOException
+   * @throws IOException on serialization errors
    */
   public static byte[] serializeGZip(String[] beneficiaries) throws IOException {
     int capacity = beneficiaries.length * 15;
@@ -192,7 +192,7 @@ public class FilterSerialization {
    *
    * @param beneficiaries to serialize
    * @return serialized bytes
-   * @throws IOException
+   * @throws IOException on serialization errors
    */
   public static byte[] serializeSnappy(String[] beneficiaries) throws IOException {
     int capacity = beneficiaries.length * 15;
