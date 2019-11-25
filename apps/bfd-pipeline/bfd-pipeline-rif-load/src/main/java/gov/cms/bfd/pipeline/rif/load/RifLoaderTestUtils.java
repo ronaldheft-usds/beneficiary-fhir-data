@@ -35,6 +35,7 @@ public final class RifLoaderTestUtils {
   /** The value to use for {@link LoadAppOptions#isIdempotencyRequired()}. */
   public static final boolean IDEMPOTENCY_REQUIRED = true;
 
+  @SuppressWarnings("unused")
   private static final Logger LOGGER = LoggerFactory.getLogger(RifLoaderTestUtils.class);
 
   /**

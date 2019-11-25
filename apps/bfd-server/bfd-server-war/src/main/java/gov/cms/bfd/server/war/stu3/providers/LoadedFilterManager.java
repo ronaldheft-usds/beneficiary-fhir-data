@@ -181,14 +181,14 @@ public class LoadedFilterManager {
         List<Object[]> rows = entityManager.createQuery(partial).getResultList();
 
         // Fetch a full entity
-        Function<Long, LoadedFile> fetcher =
+        Function<Long, LoadedFile> fetchFullLoadedFile =
             fileId -> {
               final CriteriaQuery<LoadedFile> full = cb.createQuery(LoadedFile.class);
               final Root<LoadedFile> l = full.from(LoadedFile.class);
               full.select(l).where(cb.equal(l.get("loadedFileId"), fileId));
               return entityManager.createQuery(full).getSingleResult();
             };
-        this.filters = buildFilters(filters, rows, fetcher);
+        this.filters = buildFilters(filters, rows, fetchFullLoadedFile);
 
         /**
          * Dev note: knownUpperBound should be calculated on the pipeline's clock as other dates,
