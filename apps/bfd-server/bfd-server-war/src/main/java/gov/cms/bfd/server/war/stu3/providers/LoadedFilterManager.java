@@ -37,7 +37,7 @@ public class LoadedFilterManager {
   // Estimate of the time it takes for a write to the DB to replicate to have a read.
   private int replicaDelay;
 
-  // The limit of the time interval that the this fiter set can know about
+  // The limit of the time interval that the this filter set can know about
   private Date knownUpperBound;
   private Date knownLowerBound;
 
@@ -252,7 +252,7 @@ public class LoadedFilterManager {
    *
    * @param existing filters to reuse if possible
    * @param loadedFileRows partial tuples from the current LoadedFile table (fileId, firstUpdated,
-   *     lastUpdated sorted decsending)
+   *     lastUpdated sorted descending)
    * @param fetch to use retrieve a specific full LoadedFile when needed
    * @return a new filter list
    */
