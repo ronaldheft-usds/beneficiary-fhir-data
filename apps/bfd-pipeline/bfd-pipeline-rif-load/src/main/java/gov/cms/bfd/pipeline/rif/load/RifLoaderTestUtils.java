@@ -69,7 +69,7 @@ public final class RifLoaderTestUtils {
   public static List<LoadedFile> findLoadedFiles(EntityManager entityManager) {
     entityManager.clear();
     return entityManager
-        .createQuery("select f from LoadedFile f order by f.lastUpdated desc", LoadedFile.class)
+        .createQuery("select f from LoadedFile f order by f.created desc", LoadedFile.class)
         .getResultList();
   }
 

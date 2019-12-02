@@ -18,6 +18,9 @@ public class LoadedFileFilter {
   // The entry of the LoadedFiles table
   private final long loadedFileId;
 
+  // batches in the filters
+  private final int batchesCount;
+
   // The interval of time when the RIF load took place
   private final Date firstUpdated;
   private final Date lastUpdated;
@@ -35,10 +38,12 @@ public class LoadedFileFilter {
    */
   public LoadedFileFilter(
       long loadedFileId,
+      int batchesCount,
       Date firstUpdated,
       Date lastUpdated,
       BloomFilter<String> updatedBeneficiaries) {
     this.loadedFileId = loadedFileId;
+    this.batchesCount = batchesCount;
     this.firstUpdated = firstUpdated;
     this.lastUpdated = lastUpdated;
     this.updatedBeneficiaries = updatedBeneficiaries;
@@ -145,5 +150,9 @@ public class LoadedFileFilter {
   public static BloomFilter<String> createFilter(int count) {
     return BloomFilter.create(
         Funnels.stringFunnel(Charsets.UTF_8), count, FALSE_POSITIVE_PERCENTAGE);
+  }
+
+  public int getBatchesCount() {
+    return batchesCount;
   }
 }

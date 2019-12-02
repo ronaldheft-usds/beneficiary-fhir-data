@@ -1,14 +1,18 @@
 package gov.cms.bfd.model.rif;
 
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
+import javax.persistence.CascadeType;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import javax.persistence.OneToMany;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
-import org.hibernate.annotations.Type;
 
 @Entity
 @Table(name = "`LoadedFiles`")
@@ -25,21 +29,15 @@ public class LoadedFile {
   @Column(name = "`rifType`", nullable = false)
   private String rifType;
 
-  @Column(name = "`count`", nullable = false)
-  private int count;
+  @Column(name = "`created`", nullable = false)
+  private Date created;
 
-  @Column(name = "`filterType`", nullable = false)
-  private String filterType;
-
-  @Column(name = "`filterBytes`", nullable = true)
-  @Type(type = "org.hibernate.type.BinaryType")
-  private byte[] filterBytes;
-
-  @Column(name = "`firstUpdated`", nullable = false)
-  private Date firstUpdated;
-
-  @Column(name = "`lastUpdated`", nullable = true)
-  private Date lastUpdated;
+  @OneToMany(
+      mappedBy = "loadedFileId",
+      orphanRemoval = false,
+      fetch = FetchType.LAZY,
+      cascade = CascadeType.ALL)
+  private Set<LoadedBatch> batches = new HashSet<>();
 
   public LoadedFile() {}
 
@@ -48,27 +46,23 @@ public class LoadedFile {
    *
    * @param loadedFileId id
    * @param rifType RifFileType
-   * @param count of records
-   * @param filterType determines the filter serialization
-   * @param filterBytes determines the filter data
-   * @param firstUpdated first updated date
-   * @param lastUpdated last updated date
+   * @param created time stamp
    */
-  public LoadedFile(
-      long loadedFileId,
-      String rifType,
-      int count,
-      String filterType,
-      byte[] filterBytes,
-      Date firstUpdated,
-      Date lastUpdated) {
+  public LoadedFile(long loadedFileId, String rifType, Date created) {
+    this();
     this.loadedFileId = loadedFileId;
     this.rifType = rifType;
-    this.count = count;
-    this.filterType = filterType;
-    this.filterBytes = filterBytes;
-    this.firstUpdated = firstUpdated;
-    this.lastUpdated = lastUpdated;
+    this.created = created;
+  }
+
+  /**
+   * Create a LoadedFile
+   *
+   * @param rifType RifFileType
+   */
+  public LoadedFile(String rifType) {
+    this();
+    this.rifType = rifType;
   }
 
   /** @return the identifier */
@@ -91,47 +85,23 @@ public class LoadedFile {
     this.rifType = rifType;
   }
 
-  public int getCount() {
-    return count;
+  /** @return the creation time stamp */
+  public Date getCreated() {
+    return created;
   }
 
-  public void setCount(int count) {
-    this.count = count;
+  /** @param created time stamp to set */
+  public void setCreated(Date created) {
+    this.created = created;
   }
 
-  public String getFilterType() {
-    return filterType;
+  /** @return the batches associated with this file */
+  public Set<LoadedBatch> getBatches() {
+    return batches;
   }
 
-  public void setFilterType(String filterType) {
-    this.filterType = filterType;
-  }
-
-  public byte[] getFilterBytes() {
-    return filterBytes;
-  }
-
-  public void setFilterBytes(byte[] filterBytes) {
-    this.filterBytes = filterBytes;
-  }
-
-  /** @return the firstUpdated */
-  public Date getFirstUpdated() {
-    return firstUpdated;
-  }
-
-  /** @param firstUpdated the firstUpdated to set */
-  public void setFirstUpdated(Date firstUpdated) {
-    this.firstUpdated = firstUpdated;
-  }
-
-  /** @return the lastUpdated */
-  public Date getLastUpdated() {
-    return lastUpdated;
-  }
-
-  /** @param lastUpdated the lastUpdated to set */
-  public void setLastUpdated(Date lastUpdated) {
-    this.lastUpdated = lastUpdated;
+  /** @param batches associated with this file */
+  public void setBatches(Set<LoadedBatch> batches) {
+    this.batches = batches;
   }
 }

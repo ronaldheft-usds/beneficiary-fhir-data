@@ -19,6 +19,7 @@ public final class LoadedFilterTest {
     final LoadedFileFilter filter1 =
         new LoadedFileFilter(
             1,
+            0,
             Date.from(Instant.now().minusSeconds(10)),
             Date.from(Instant.now().minusSeconds(5)),
             emptyFilter);
@@ -89,6 +90,7 @@ public final class LoadedFilterTest {
 
     final LoadedFileFilter filter1 =
         new LoadedFileFilter(
+            1,
             1,
             Date.from(Instant.now().minusSeconds(10)),
             Date.from(Instant.now().minusSeconds(5)),

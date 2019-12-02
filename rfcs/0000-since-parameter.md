@@ -75,11 +75,9 @@ https://<hostname>/v1/fhir/ExplanationOfBenefit
 ```
 
 The FHIR specification allows to bulk-export implementors to choose the `transactionTime` of their jobs. For efficient and fast queries, it is recommended that partners query with a time interval which the BFD has indexed the `lastUpdated` field. 
-The indexing of `lastUpdated` is typically delayed by 10 seconds when RIF files are not being loaded. 
-However, when RIF files are being loaded, the delay will be comperable to the time it takes to load the RIF file. 
-The average time to load the largest RIF file is about 30 minutes. 
-It is recommended that implementors choose a `transactionTime` that is 10 seconds in the past to ensure that all of their fetches will run against an index in BFD. During RIF loads over the weekend, the recommendation changes to 45 minutes. 
-As long a partners query within these recommendation, they can recommend to their clients a daily  frequency for their bulk export jobs with `_since` without taxing the BFD. 
+The indexing of `lastUpdated` is typically delayed by 1-10 seconds when RIF files are not being loaded and by 5-15 seconds when RIF files are being loaded. 
+It is recommended that implementors choose a `transactionTime` that is 20 seconds in the past to ensure that all of their fetches will run against an index in BFD. 
+As long a partners query within these recommendation, they can recommend to their clients a daily frequency for their bulk export jobs with `_since` without taxing the BFD. 
 
 
 ### BFD Implementation Details
@@ -122,7 +120,12 @@ Instead of optimizing at the BFD data server, an earlier design had the empty re
 
 This proposal should scale as BFD, and it's partners serve more beneficiaries and clients. It should continue to work as BFD adds more partners and data sources. 
 
-In future releases, BFD may receive claim data faster than the current weekly updates. If the ETL process runs daily, the algorithms in this proposal should continue to work. If one day, the BFD receives claim data continuously, we should revisit the algorithms of this proposal. 
+In future releases, BFD may receive claim data faster than the current weekly updates. Care has been taken to make sure
+the lastUpdated indexing works correctly during RIF file processing. This means that there should be no need to change
+the algorithm when the BFD moves to daily or even hourly batches. 
+
+Much of the design choices in this RFC was done to avoid taxing the database at the center of the BFD.
+If the BFD database changes to allow the database to index `lastUpdated`, much of the optimizations done in this RFC can be removed.
 
 In discussions with DPC customers, they have asked for notification when the DPC has new beneficiary data. Instead of polling for updates, they would like to have the ability for a push update. Similarly, FHIR is developing a subscription model that supports webhooks \[[6](#ref6)\]. If a BFD partner wants to develop these features, the file loaded tables can form a basis for this work. 
 

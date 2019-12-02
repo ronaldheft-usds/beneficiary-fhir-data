@@ -36,23 +36,40 @@ alter table "SNFClaims" add column lastUpdated timestamp with time zone;
 -- Add tables that tracks the ETL process
 --
 -- One row for each RIF file loaded. 
--- The timestamps represent start and end time of processing the RIF file. 
--- Count is the number of records in the RIF file. 
--- The filterBytes is an array of all beneficiariesIds in the RIF file.
--- Dev Note: The byte array format was faster (2x) than an array type
--- The filterType allows us to upgrade the filter type in the future.
+-- The timestamp represents the start time of the RIF file processing
 -- 
 create table "LoadedFiles" (
   "loadedFileId" bigint primary key,		             			        
-  "rifType" varchar(48) not null,		
-  "count" int not null, 
-  "filterType" varchar(20) not null,		
-  "filterBytes" ${logic.blob},				  
-  "firstUpdated" timestamp with time zone not null,		  	
-  "lastUpdated" timestamp with time zone
+  "rifType" varchar(48) not null,	
+  "created" timestamp with time zone not null  
 )
 ${logic.tablespaces-escape} tablespace "loadedfiles_ts"
 ;
 
 create sequence loadedFiles_loadedFileId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 20 cycle;
 
+-- One row for each batch of beneficiaries loaded. Indexed on loadedFileId.
+--
+-- Dev Note: 
+-- Many ways of storing beneIds where tried and considered. Since RIF records are written in
+-- batches, creating a record that represents that batch was considered to be efficient enough.
+-- More importantly since RIF record batches are put inside a transaction, the LoadedBatches
+-- table will always be consistent with the loaded RIF records. 
+create table "LoadedBatches" (
+  "loadedBatchId" bigint primary key,
+  "loadedFileId" bigint not null,               
+  "beneficiaries" varchar(20000) not null,    
+  "created" timestamp with time zone not null
+)
+${logic.tablespaces-escape} tablespace "loadedbatches_ts"
+;
+
+-- Postgres doesn't automatically index the referencing side of an FK constraint. Create one.
+create index loadedBatches_loadedFileId on "LoadedBatches" ${logic.using-hash} ("loadedFileId");
+
+alter table "LoadedBatches"         
+  add constraint "loadedBatches_loadedFileId" 
+    foreign key ("loadedFileId") 
+    references "LoadedFiles";
+
+create sequence loadedBatches_loadedBatchId_seq ${logic.sequence-start} 1 ${logic.sequence-increment} 100 cycle;

@@ -12,8 +12,9 @@ import gov.cms.bfd.model.rif.BeneficiaryHistory;
 import gov.cms.bfd.model.rif.CarrierClaim;
 import gov.cms.bfd.model.rif.CarrierClaimCsvWriter;
 import gov.cms.bfd.model.rif.CarrierClaimLine;
+import gov.cms.bfd.model.rif.LoadedBatch;
+import gov.cms.bfd.model.rif.LoadedBatchBuilder;
 import gov.cms.bfd.model.rif.LoadedFile;
-import gov.cms.bfd.model.rif.LoadedFileBuilder;
 import gov.cms.bfd.model.rif.RecordAction;
 import gov.cms.bfd.model.rif.RifFileEvent;
 import gov.cms.bfd.model.rif.RifFileRecords;
@@ -87,7 +88,7 @@ public final class RifLoader implements AutoCloseable {
    */
   private static final int RECORD_BATCH_SIZE = 100;
 
-  private static final int MAX_FILE_AGE = 30; // Days
+  private static final int MAX_FILE_AGE = 40; // Days
 
   private static final Logger LOGGER = LoggerFactory.getLogger(RifLoader.class);
   private static final Logger LOGGER_RECORD_COUNTS =
@@ -305,10 +306,12 @@ public final class RifLoader implements AutoCloseable {
               }
             });
 
-    // Start a LoadedFiles entry
-    final LoadedFileBuilder loadedFileBuilder =
-        insertLoadedFile(dataToLoad.getSourceEvent(), errorHandler);
-    if (loadedFileBuilder == null) {
+    // Trim the LoadedFiles & LoadedBatches table
+    trimLoadedFiles(errorHandler);
+
+    // Insert a LoadedFiles entry
+    final long loadedFileId = insertLoadedFile(dataToLoad.getSourceEvent(), errorHandler);
+    if (loadedFileId < 0) {
       return; // Something went wrong, the error handler was called.
     }
 
@@ -339,7 +342,7 @@ public final class RifLoader implements AutoCloseable {
             processAsync(
                 loadExecutor,
                 recordsBatch,
-                loadedFileBuilder,
+                loadedFileId,
                 postgresBatch,
                 resultHandler,
                 errorHandler);
@@ -380,14 +383,6 @@ public final class RifLoader implements AutoCloseable {
       }
     }
 
-    // Save the loaded beneficiary information that we have been saving.
-    Timer.Context timerUpdateLoadedFile =
-        appMetrics
-            .timer(MetricRegistry.name(getClass().getSimpleName(), "insertLoadedFile"))
-            .time();
-    updateLoadedFile(loadedFileBuilder, errorHandler);
-    timerUpdateLoadedFile.stop();
-
     LOGGER.info("Processed '{}'.", dataToLoad);
     timerDataSetFile.stop();
 
@@ -406,7 +401,7 @@ public final class RifLoader implements AutoCloseable {
   private void processAsync(
       BlockingThreadPoolExecutor loadExecutor,
       List<RifRecordEvent<?>> recordsBatch,
-      LoadedFileBuilder loadedFileBuilder,
+      long loadedFileId,
       PostgreSqlCopyInserter postgresBatch,
       Consumer<RifRecordLoadResult> resultHandler,
       Consumer<Throwable> errorHandler) {
@@ -414,7 +409,7 @@ public final class RifLoader implements AutoCloseable {
         () -> {
           try {
             List<RifRecordLoadResult> processResults =
-                process(recordsBatch, loadedFileBuilder, postgresBatch);
+                process(recordsBatch, loadedFileId, postgresBatch);
             processResults.forEach(resultHandler::accept);
           } catch (Throwable e) {
             errorHandler.accept(e);
@@ -431,7 +426,7 @@ public final class RifLoader implements AutoCloseable {
    */
   private List<RifRecordLoadResult> process(
       List<RifRecordEvent<?>> recordsBatch,
-      LoadedFileBuilder loadedFileBuilder,
+      long loadedFileId,
       PostgreSqlCopyInserter postgresBatch) {
     RifFileEvent fileEvent = recordsBatch.get(0).getFileEvent();
     MetricRegistry fileEventMetrics = fileEvent.getEventMetrics();
@@ -470,14 +465,16 @@ public final class RifLoader implements AutoCloseable {
       txn = entityManager.getTransaction();
       txn.begin();
       List<RifRecordLoadResult> loadResults = new ArrayList<>(recordsBatch.size());
+      LoadedBatchBuilder loadedBatchBuilder =
+          new LoadedBatchBuilder(loadedFileId, recordsBatch.size());
       for (RifRecordEvent<?> rifRecordEvent : recordsBatch) {
         RecordAction recordAction = rifRecordEvent.getRecordAction();
         Object record = rifRecordEvent.getRecord();
 
         LOGGER.trace("Loading '{}' record.", rifFileType);
 
-        // Associate the benficiary with this file loaded
-        loadedFileBuilder.associateBeneficiary(rifRecordEvent.getBeneficiaryId());
+        // Associate the beneficiary with this file loaded
+        loadedBatchBuilder.associateBeneficiary(rifRecordEvent.getBeneficiaryId());
 
         LoadStrategy strategy = selectStrategy(recordAction);
         LoadAction loadAction;
@@ -530,6 +527,8 @@ public final class RifLoader implements AutoCloseable {
 
         loadResults.add(new RifRecordLoadResult(rifRecordEvent, loadAction));
       }
+      LoadedBatch loadedBatch = loadedBatchBuilder.build();
+      entityManager.persist(loadedBatch);
 
       txn.commit();
 
@@ -593,15 +592,21 @@ public final class RifLoader implements AutoCloseable {
     }
   }
 
-  private LoadedFileBuilder insertLoadedFile(
-      RifFileEvent fileEvent, Consumer<Throwable> errorHandler) {
+  /**
+   * Insert the LoadedFile into the database
+   *
+   * @param fileEvent to base this new LoadedFile
+   * @param errorHandler to call if something bad happens
+   * @return the loadedFileId of the new LoadedFile record
+   */
+  private long insertLoadedFile(RifFileEvent fileEvent, Consumer<Throwable> errorHandler) {
+    if (fileEvent == null || fileEvent.getFile().getFileType() == null) {
+      throw new IllegalArgumentException();
+    }
+
     final LoadedFile loadedFile = new LoadedFile();
-    loadedFile.setCount(0);
-    loadedFile.setFirstUpdated(new Date());
-    loadedFile.setLastUpdated(null);
     loadedFile.setRifType(fileEvent.getFile().getFileType().toString());
-    loadedFile.setFilterType("");
-    loadedFile.setFilterBytes(null);
+    loadedFile.setCreated(new Date());
 
     try {
       EntityManager em = entityManagerFactory.createEntityManager();
@@ -613,11 +618,12 @@ public final class RifLoader implements AutoCloseable {
         em.persist(loadedFile);
         txn.commit();
         LOGGER.info(
-            "Inserting LoadedFile {} of type {}",
+            "Inserting LoadedFile {} of type {} created at {}",
             loadedFile.getLoadedFileId(),
-            loadedFile.getRifType());
+            loadedFile.getRifType(),
+            loadedFile.getCreated());
 
-        return new LoadedFileBuilder(loadedFile);
+        return loadedFile.getLoadedFileId();
       } finally {
         if (em != null && em.isOpen()) {
           if (txn != null && txn.isActive()) {
@@ -628,49 +634,43 @@ public final class RifLoader implements AutoCloseable {
       }
     } catch (Exception ex) {
       errorHandler.accept(ex);
-      return null;
+      return -1;
     }
   }
 
   /**
-   * Update the LoadedFile entity associated with this batch of RifRecords
+   * Trim the LoadedFiles and LoadedBatches tables if necessary
    *
-   * @param loadedFileBuilder to use
    * @param errorHandler is called on exceptions
    */
-  private void updateLoadedFile(
-      LoadedFileBuilder loadedFileBuilder, Consumer<Throwable> errorHandler) {
+  private void trimLoadedFiles(Consumer<Throwable> errorHandler) {
     try {
       EntityManager em = entityManagerFactory.createEntityManager();
       EntityTransaction txn = null;
       try {
-        // Insert the passed in loaded file
         txn = em.getTransaction();
         txn.begin();
-        final LoadedFile loadedFile = em.merge(loadedFileBuilder.build());
-        txn.commit();
-        LOGGER.info(
-            "Updated LoadedFile {} of type {} with count {}",
-            loadedFile.getLoadedFileId(),
-            loadedFile.getRifType(),
-            loadedFile.getCount());
-
-        // Take this time to find old files and delete them
         final Date oldDate = Date.from(Instant.now().minus(MAX_FILE_AGE, ChronoUnit.DAYS));
-        txn = em.getTransaction();
-        txn.begin();
+
         final CriteriaBuilder cb = em.getCriteriaBuilder();
-        final CriteriaQuery<Long> countCriteria = cb.createQuery(Long.class);
-        final Root<LoadedFile> f = countCriteria.from(LoadedFile.class);
-        countCriteria.select(cb.count(f)).where(cb.lessThan(f.get("lastUpdated"), oldDate));
-        final long oldCount = em.createQuery(countCriteria).getSingleResult();
-        if (oldCount > 0) {
-          final CriteriaDelete<LoadedFile> deleteCriteria =
-              cb.createCriteriaDelete(LoadedFile.class);
-          final Root<LoadedFile> d = deleteCriteria.from(LoadedFile.class);
-          deleteCriteria.where(cb.lessThan(d.get("lastUpdated"), oldDate));
-          int deleted = em.createQuery(deleteCriteria).executeUpdate();
-          LOGGER.info("Deleting {} LoadedFiles", deleted);
+        final CriteriaQuery<LoadedFile> oldFileCriteria = cb.createQuery(LoadedFile.class);
+        final Root<LoadedFile> f = oldFileCriteria.from(LoadedFile.class);
+        oldFileCriteria
+            .select(oldFileCriteria.from(LoadedFile.class))
+            .where(cb.lessThan(f.get("created"), oldDate));
+        List<LoadedFile> oldFiles = em.createQuery(oldFileCriteria).getResultList();
+
+        if (oldFiles.size() > 0) {
+          for (LoadedFile oldFile : oldFiles) {
+            LOGGER.info("Deleting LoadedFile id:{}", oldFile.getLoadedFileId());
+            final CriteriaDelete<LoadedBatch> deleteBatches =
+                cb.createCriteriaDelete(LoadedBatch.class);
+            final Root<LoadedBatch> b = deleteBatches.from(LoadedBatch.class);
+            deleteBatches.where(cb.equal(b.get("loadedFileId"), oldFile.getLoadedFileId()));
+            em.createQuery(deleteBatches).executeUpdate();
+
+            em.remove(oldFile);
+          }
           txn.commit();
         } else {
           txn.rollback();
