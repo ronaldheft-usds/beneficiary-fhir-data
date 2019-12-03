@@ -52,12 +52,6 @@ public final class LoadedFilterManagerIT {
           Assert.assertTrue(filterManager.getKnownLowerBound().getTime() <= afterLoad.getTime());
           Assert.assertTrue(filterManager.getKnownUpperBound().getTime() <= afterRefresh.getTime());
           Assert.assertTrue(afterFilters.size() > 1);
-
-          // Should be sorted by lastUpdated date
-          final LoadedFileFilter firstFilter = afterFilters.get(0);
-          final LoadedFileFilter lastFilter = afterFilters.get(afterFilters.size() - 1);
-          Assert.assertTrue(
-              lastFilter.getLastUpdated().getTime() <= firstFilter.getLastUpdated().getTime());
         });
   }
 
@@ -115,6 +109,7 @@ public final class LoadedFilterManagerIT {
           filterManager.refreshFilters();
 
           // Test after refresh
+          int after1Count = filterManager.getFilters().size();
           Assert.assertTrue(filterManager.isInKnownBounds(afterSampleARange));
           Assert.assertTrue(
               "Expected date range to not have a matching filter",
@@ -123,9 +118,13 @@ public final class LoadedFilterManagerIT {
               "Expected date range to not have a matching filter",
               filterManager.isResultSetEmpty(INVALID_BENE, afterSampleARange));
 
-          loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_U.getResources()));
+          // Refresh again (should do nothing)
+          filterManager.refreshFilters();
+          int after2Count = filterManager.getFilters().size();
+          Assert.assertEquals(after1Count, after2Count);
 
-          // Load again
+          // Load some more data
+          loadData(dataSource, Arrays.asList(StaticRifResourceGroup.SAMPLE_U.getResources()));
           RifLoaderTestUtils.pauseMillis(1000);
           final Date afterSampleU = new Date();
           final DateRangeParam aroundSampleU = new DateRangeParam(afterSampleA, afterSampleU);

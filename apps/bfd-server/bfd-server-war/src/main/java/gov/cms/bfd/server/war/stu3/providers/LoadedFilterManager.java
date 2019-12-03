@@ -5,7 +5,7 @@ import com.google.common.hash.BloomFilter;
 import gov.cms.bfd.model.rif.LoadedBatch;
 import gov.cms.bfd.model.rif.LoadedFile;
 import java.time.Instant;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -23,8 +23,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Monitors the loaded files in the database and creates Bloom filters to match these files.
- * Thread-safe.
+ * Monitors the loaded files and their associated batches in the database. Creates Bloom filters to
+ * match these files.
  */
 @Component
 public class LoadedFilterManager {
@@ -43,12 +43,60 @@ public class LoadedFilterManager {
   private Date knownUpperBound;
   private Date knownLowerBound;
 
+  // The loadBatchIds in the filters
+  private long minBatchId;
+  private long maxBatchId;
+
+  /**
+   * A tuple of values: LoadedFile.loadedFileid, LoadedFile.created, max(LoadedBatch.created). Used
+   * for an optimized query that includes only what is needed to refresh filters
+   */
+  public static class LoadedTuple {
+    private long loadedFileId;
+    private Date firstUpdated;
+    private Date lastUpdated;
+
+    public LoadedTuple() {}
+
+    public LoadedTuple(long loadedFileId, Date firstUpdated, Date lastUpdated) {
+      this.loadedFileId = loadedFileId;
+      this.firstUpdated = firstUpdated;
+      this.lastUpdated = lastUpdated;
+    }
+
+    public long getLoadedFileId() {
+      return loadedFileId;
+    }
+
+    public void setLoadedFileId(long loadedFileId) {
+      this.loadedFileId = loadedFileId;
+    }
+
+    public Date getFirstUpdated() {
+      return firstUpdated;
+    }
+
+    public void setFirstUpdated(Date firstUpdated) {
+      this.firstUpdated = firstUpdated;
+    }
+
+    public Date getLastUpdated() {
+      return lastUpdated;
+    }
+
+    public void setLastUpdated(Date lastUpdated) {
+      this.lastUpdated = lastUpdated;
+    }
+  }
+
   /** Create a manager for {@link LoadedFileFilter}s. */
   public LoadedFilterManager() {
     this.replicaDelay = 5; // Default estimate
-    this.knownLowerBound = new Date(); // Empty bound
-    this.knownUpperBound = this.knownLowerBound;
-    this.filters = Arrays.asList();
+    this.knownUpperBound = new Date();
+    this.knownLowerBound = this.knownUpperBound;
+    this.filters = new ArrayList<>();
+    this.minBatchId = 0;
+    this.maxBatchId = 0;
   }
 
   /**
@@ -94,6 +142,24 @@ public class LoadedFilterManager {
   }
 
   /**
+   * The minimum batchId currently in the filter set
+   *
+   * @return the min
+   */
+  public long getMinBatchId() {
+    return minBatchId;
+  }
+
+  /**
+   * The maximum batchId currently in the filter set
+   *
+   * @return the max
+   */
+  public long getMaxBatchId() {
+    return maxBatchId;
+  }
+
+  /**
    * Setup the JPA entityManager for the database to query
    *
    * @param entityManager
@@ -119,7 +185,6 @@ public class LoadedFilterManager {
       }
 
       // Within the known interval that search for matching filters
-      final List<LoadedFileFilter> filters = getFilters();
       for (LoadedFileFilter filter : filters) {
         if (filter.matchesDateRange(lastUpdatedRange)) {
           if (filter.mightContain(beneficiaryId)) {
@@ -162,52 +227,47 @@ public class LoadedFilterManager {
     /**
      * Dev note: the pipeline has a process to trim the files list. Nevertheless, building a set of
      * bloom filters may take a while. This method is expected to be called on it's own thread, so
-     * this filter building process can happen without interfering with serving. Also, the refresh
-     * process will be quick when no loaded file changes are found. Care is taken to ensure that
-     * pipeline can write safely while this refresh is happening.
+     * this filter building process can happen without interfering with serving. Also, this refresh
+     * time will be proportional to the number of files which have been loaded in the past refresh
+     * period. If no files have been loaded, this refresh should take about a millisecond.
      */
 
-    // Make sure we go back to the DB, not the cache, because of the pipeline may write to DB
+    // Make sure we go back to the DB, not the cache, because of the pipeline may write to the DB
     entityManager.clear();
 
     try {
       synchronized (this) {
-        // Build up a query that only includes what we need and doesn't include the filterBytes
-        // which can be large
-        final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
-        final CriteriaQuery<Object[]> partial = cb.createQuery(Object[].class);
-        final Root<LoadedFile> f = partial.from(LoadedFile.class);
-        Join<LoadedFile, LoadedBatch> b = f.join("batches");
-        partial
-            .multiselect(f.get("loadedFileId"), f.get("created"), cb.max(b.get("created")))
-            .groupBy(f.get("loadedFileId"), f.get("created"))
-            .orderBy(cb.desc(f.get("created")));
-        List<Object[]> rows = entityManager.createQuery(partial).getResultList();
+        // If new batches are present, then build new filters for the affected files
+        final long updatedMaxBatchId = getMaxLoadedBatchId();
+        if (updatedMaxBatchId != this.maxBatchId) {
+          // Fetch the files that have been updated
+          List<LoadedTuple> loadedTuples = fetchLoadedTuples(maxBatchId);
 
-        // Fetch a full entity
-        Function<Long, List<LoadedBatch>> fetchBatches =
-            fileId -> {
-              final CriteriaQuery<LoadedBatch> fetch = cb.createQuery(LoadedBatch.class);
-              final Root<LoadedBatch> l = fetch.from(LoadedBatch.class);
-              fetch.select(l).where(cb.equal(l.get("loadedFileId"), fileId));
-              return entityManager.createQuery(fetch).getResultList();
-            };
+          // Update the filter list
+          this.filters = updateFilters(this.filters, loadedTuples, this::fetchLoadedBatches);
 
-        // Rebuild the filter list
-        this.filters = buildFilters(filters, rows, fetchBatches);
+          /**
+           * Dev note: knownUpperBound should be calculated on the pipeline's clock as other dates,
+           * since there is the possibility of clock skew and db replication delay between the
+           * pipeline and the data server. However, this code is running on the data server, so we
+           * have to estimate the refresh time. To do so, subtract a few seconds a safety margin for
+           * the possibility of these effects. A wrong delay estimate will never affect the
+           * correctness of the BFD's results. The replicaDelay estimate can be set to 0 for
+           * testing.
+           */
+          final Date withDelay = Date.from(Instant.now().minusSeconds(replicaDelay));
+          this.knownUpperBound = calcUpperBound(loadedTuples, withDelay);
+          this.maxBatchId = updatedMaxBatchId;
+        }
 
-        /**
-         * Dev note: knownUpperBound should be calculated on the pipeline's clock as other dates,
-         * since there is the possibility of clock skew and db replication delay between the
-         * pipeline and the data server. However, this code is running on the data server, so we
-         * have to estimate the refresh time. To do add subtract a few seconds a safety margin for
-         * the possibility of these effects. There methods to do a better estimate, but they are not
-         * worth the effort because getting the delay estimate wrong will never affect the
-         * correctness of the BFD's results. The replicaDelay estimate can be set to 0 for testing.
-         */
-        this.knownUpperBound =
-            calcUpperBound(rows, Date.from(Instant.now().minusSeconds(replicaDelay)));
-        this.knownLowerBound = calcLowerBound(rows, this.knownUpperBound);
+        // If batches been trimmed, then remove filters which are no longer present
+        final long updatedMinBatchId = getMinLoadedBatchId();
+        if (updatedMinBatchId != this.minBatchId) {
+          List<LoadedFile> loadedFiles = fetchLoadedFiles();
+          this.filters = trimFilters(this.filters, loadedFiles);
+          this.knownLowerBound = calcLowerBound(loadedFiles, this.knownLowerBound);
+          this.minBatchId = updatedMinBatchId;
+        }
       }
     } catch (Exception ex) {
       LOGGER.error("Error found refreshing LoadedFile filters", ex);
@@ -220,11 +280,20 @@ public class LoadedFilterManager {
    * @param filters to use
    * @param knownLowerBound to use
    * @param knownUpperBound to use
+   * @param minBatchId to use
+   * @param maxBatchId to use
    */
-  public void set(List<LoadedFileFilter> filters, Date knownLowerBound, Date knownUpperBound) {
+  public void set(
+      List<LoadedFileFilter> filters,
+      Date knownLowerBound,
+      Date knownUpperBound,
+      long minBatchId,
+      long maxBatchId) {
     this.filters = filters;
     this.knownLowerBound = knownLowerBound;
     this.knownUpperBound = knownUpperBound;
+    this.minBatchId = minBatchId;
+    this.maxBatchId = maxBatchId;
   }
 
   /** @return a info about the filter manager state */
@@ -242,45 +311,66 @@ public class LoadedFilterManager {
   }
 
   /**
-   * Dev Note: The following methods encapusulate the logic of the manager. They seperated from the
-   * state of the manager to make it easier to test. They should be considered private to the class,
-   * but they are made public for testing.
+   * Dev Note: The following static methods encapsulate the logic of the manager. They are separated
+   * from the state of the manager to allow for easy testing. They should be considered private to
+   * the class, but they are made public for tests.
+   *
+   * <p>If you are interested, the idea comes from:
+   * https://www.mokacoding.com/blog/functional-core-reactive-shell/
    */
 
   /**
-   * Build a new filter list, reusing the existing list
+   * Create an updated {@link LoadedFileFilter} list from existing filters and newly loaded files
+   * and batches
    *
-   * @param existing filters to reuse if possible
-   * @param loadedFileRows Tuples of loadedFileId, LoadedFile.created, max(LoadedBatch.created)
-   * @param fetch to use retrieve list of LoadedBatch
+   * @param existingFilters that should be included
+   * @param loadedTuples that come from new LoadedBatch
+   * @param fetchById to use retrieve list of LoadedBatch by id
+   * @return a new filter list
+   */
+  public static List<LoadedFileFilter> updateFilters(
+      List<LoadedFileFilter> existingFilters,
+      List<LoadedTuple> loadedTuples,
+      Function<Long, List<LoadedBatch>> fetchById) {
+    List<LoadedFileFilter> result = new ArrayList<>(existingFilters);
+    List<LoadedFileFilter> newFilters = buildFilters(loadedTuples, fetchById);
+    newFilters.forEach(
+        filter -> {
+          result.removeIf(f -> f.getLoadedFileId() == filter.getLoadedFileId());
+          result.add(filter);
+        });
+    result.sort((a, b) -> b.getFirstUpdated().compareTo(a.getFirstUpdated())); // Descending
+    return result;
+  }
+
+  /**
+   * Build a new {@link LoadedFileFilter} list
+   *
+   * @param loadedTuples that come from new LoadedBatch
+   * @param fetchById to use retrieve list of LoadedBatch by id
    * @return a new filter list
    */
   public static List<LoadedFileFilter> buildFilters(
-      List<LoadedFileFilter> existing,
-      List<Object[]> loadedFileRows,
-      Function<Long, List<LoadedBatch>> fetch) {
-    return loadedFileRows.stream()
-        .filter(row -> row[2] != null) // filter out rows that do not have a batch
-        .map(
-            row -> {
-              final long loadedFileId = (Long) row[0]; // from LoadedFile.loadedFileId
-              final Date firstUpdated = (Date) row[1]; // from LoadedFile.created
-              final Date lastUpdated = (Date) row[2]; // from max(LoadedBatch.created)
-              final Optional<LoadedFileFilter> matchingFilter =
-                  existing.stream()
-                      .filter(
-                          filter -> {
-                            return filter.getLoadedFileId() == loadedFileId
-                                && filter.getFirstUpdated().equals(firstUpdated)
-                                && filter.getLastUpdated().equals(lastUpdated);
-                          })
-                      .findFirst();
-              return matchingFilter.orElseGet(
-                  () -> {
-                    return buildFilter(loadedFileId, firstUpdated, fetch);
-                  });
-            })
+      List<LoadedTuple> loadedTuples, Function<Long, List<LoadedBatch>> fetchById) {
+    return loadedTuples.stream()
+        .map(t -> buildFilter(t.loadedFileId, t.firstUpdated, fetchById))
         .collect(Collectors.toList());
+  }
+
+  /**
+   * Trim filters to match current {@link LoadedFile} list. Only deletes filters.
+   *
+   * @param existingFilters to reuse if possible
+   * @param loadedFiles list of current loaded files
+   * @return a new filter list
+   */
+  public static List<LoadedFileFilter> trimFilters(
+      List<LoadedFileFilter> existingFilters, List<LoadedFile> loadedFiles) {
+    List<LoadedFileFilter> newFilters = new ArrayList<>(existingFilters);
+    newFilters.removeIf(
+        filter ->
+            !loadedFiles.stream().anyMatch(f -> f.getLoadedFileId() == filter.getLoadedFileId()));
+    return newFilters;
   }
 
   /**
@@ -294,12 +384,16 @@ public class LoadedFilterManager {
   public static LoadedFileFilter buildFilter(
       long fileId, Date firstUpdated, Function<Long, List<LoadedBatch>> fetchById) {
     final List<LoadedBatch> loadedBatches = fetchById.apply(fileId);
-    if (loadedBatches.size() == 0) {
+    final int batchCount = loadedBatches.size();
+    final int batchSize = loadedBatches.get(0).getBeneficiaries().size();
+    if (batchCount == 0) {
       throw new IllegalArgumentException("Batches cannot be empty for a filter");
     }
-    final int estimatedCount =
-        loadedBatches.get(0).getBeneficiaries().size() * loadedBatches.size();
-    final BloomFilter<String> bloomFilter = LoadedFileFilter.createFilter(estimatedCount);
+    // It is important to get a good estimate of the number of entries for
+    // an accurate FFP and minimal memory size. This one assumes that all batches are of equal size.
+    final BloomFilter<String> bloomFilter = LoadedFileFilter.createFilter(batchSize * batchCount);
+
+    // Loop through all batches, filling the bloom filter and finding the lastUpdated
     Date lastUpdated = firstUpdated;
     for (LoadedBatch batch : loadedBatches) {
       for (String beneficiary : batch.getBeneficiaries()) {
@@ -311,37 +405,113 @@ public class LoadedFilterManager {
     }
 
     LOGGER.info("Built a filter for {} with {} batches", fileId, loadedBatches.size());
-    return new LoadedFileFilter(
-        fileId, loadedBatches.size(), firstUpdated, lastUpdated, bloomFilter);
+    return new LoadedFileFilter(fileId, batchCount, firstUpdated, lastUpdated, bloomFilter);
   }
 
   /**
    * Calculate the upper bound based on unfinished loaded files and the passed upper bound
    *
-   * @param fileRows Tuples of loadedFileId, LoadedFile.created, max(LoadedBatch.created)
+   * @param loadedTuples from the database
    * @param refreshTime the current time when the fileRows was fetched
-   * @return
+   * @return calculated upper bound date
    */
-  public static Date calcUpperBound(List<Object[]> fileRows, Date refreshTime) {
-    Optional<Date> maxLastUpdated =
-        fileRows.stream()
-            .map(r -> r[2] != null ? (Date) r[2] : (Date) r[1])
-            .sorted((a, b) -> b.compareTo(a))
-            .findFirst();
-    return maxLastUpdated.isPresent() && maxLastUpdated.get().after(refreshTime)
-        ? maxLastUpdated.get()
-        : refreshTime;
+  public static Date calcUpperBound(List<LoadedTuple> loadedTuples, Date refreshTime) {
+    Optional<Date> maxDate =
+        loadedTuples.stream().map(t -> t.lastUpdated).sorted((a, b) -> b.compareTo(a)).findFirst();
+    return maxDate.isPresent() && maxDate.get().after(refreshTime) ? maxDate.get() : refreshTime;
   }
 
   /**
    * Calculate the lower bound based on the loaded file information
    *
-   * @param fileRows Tuples of loadedFileId, LoadedFile.created, max(LoadedBatch.created)
+   * @param loadedFiles Tuples of loadedFileId, LoadedFile.created, max(LoadedBatch.created)
    * @param lowerBound is bound to use if no rows are present
-   * @return new calculated bound or null for an empty list
+   * @return new calculated bound or lowerBound for empty loadedFiles
    */
-  public static Date calcLowerBound(List<Object[]> fileRows, Date lowerBound) {
-    Optional<Object[]> min = fileRows.stream().min((a, b) -> ((Date) a[1]).compareTo((Date) b[1]));
-    return min.isPresent() ? (Date) min.get()[1] : lowerBound;
+  public static Date calcLowerBound(List<LoadedFile> loadedFiles, Date lowerBound) {
+    Optional<LoadedFile> min =
+        loadedFiles.stream().min((a, b) -> a.getCreated().compareTo(b.getCreated()));
+    return min.isPresent() ? min.get().getCreated() : lowerBound;
+  }
+
+  /** DB Operations */
+
+  /**
+   * Return the max loaded batch id
+   *
+   * @return the max loaded batch id
+   */
+  private long getMaxLoadedBatchId() {
+    final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+    final CriteriaQuery<Object> query = cb.createQuery(Object.class);
+    final Root<LoadedBatch> b = query.from(LoadedBatch.class);
+    query.multiselect(cb.max(b.get("loadedBatchId")));
+    List<Object> values = entityManager.createQuery(query).getResultList();
+    return values.size() > 0 ? (Long) values.get(0) : 0;
+  }
+
+  /**
+   * Return the min loaded batch id
+   *
+   * @return the min id
+   */
+  private long getMinLoadedBatchId() {
+    final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+    final CriteriaQuery<Object> query = cb.createQuery(Object.class);
+    final Root<LoadedBatch> b = query.from(LoadedBatch.class);
+    query.multiselect(cb.min(b.get("loadedBatchId")));
+    List<Object> values = entityManager.createQuery(query).getResultList();
+    return values.size() > 0 ? (Long) values.get(0) : 0;
+  }
+
+  /**
+   * Fetch the tuple of (loadedFileId, LoadedFile.created, max(LoadedBatch.created))
+   *
+   * @param afterBatchId limits the query to include batches after this loadedBatchId
+   * @return tuples that meet the afterBatchId criteria or an empty list
+   */
+  private List<LoadedTuple> fetchLoadedTuples(long afterBatchId) {
+    final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+    final CriteriaQuery<LoadedTuple> query = cb.createQuery(LoadedTuple.class);
+    final Root<LoadedFile> f = query.from(LoadedFile.class);
+    Join<LoadedFile, LoadedBatch> b = f.join("batches");
+    query
+        .select(
+            cb.construct(
+                LoadedTuple.class,
+                f.get("loadedFileId"),
+                f.get("created"),
+                cb.max(b.get("created"))))
+        .where(cb.gt(b.get("loadedBatchId"), afterBatchId))
+        .groupBy(f.get("loadedFileId"), f.get("created"))
+        .orderBy(cb.desc(f.get("created")));
+    return entityManager.createQuery(query).getResultList();
+  }
+
+  /**
+   * Fetch all the files that are currently loaded.
+   *
+   * @return the LoadedFiles or an empty list
+   */
+  private List<LoadedFile> fetchLoadedFiles() {
+    final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+    final CriteriaQuery<LoadedFile> fetch = cb.createQuery(LoadedFile.class);
+    fetch.select(fetch.from(LoadedFile.class));
+    return entityManager.createQuery(fetch).getResultList();
+  }
+
+  /**
+   * Fetch all the batches associated with LoadedFile.
+   *
+   * @param loadedFileId of the LoadedFile
+   * @param afterBatchId the floor of the batch-ids to fetch
+   * @return a list of LoadedBatches or an empty list
+   */
+  private List<LoadedBatch> fetchLoadedBatches(long loadedFileId) {
+    final CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+    final CriteriaQuery<LoadedBatch> fetch = cb.createQuery(LoadedBatch.class);
+    final Root<LoadedBatch> l = fetch.from(LoadedBatch.class);
+    fetch.select(l).where(cb.equal(l.get("loadedFileId"), loadedFileId));
+    return entityManager.createQuery(fetch).getResultList();
   }
 }

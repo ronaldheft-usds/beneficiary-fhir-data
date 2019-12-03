@@ -32,6 +32,7 @@ public class LoadedFileFilter {
    * Build a filter for a LoadedFile
    *
    * @param loadedFileId for this filter
+   * @param batchesCount of the number of batches in this filter
    * @param firstUpdated for this filter
    * @param lastUpdated for this filter
    * @param updatedBeneficiaries bloom filter for this filter
